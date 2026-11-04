@@ -3,6 +3,11 @@ import { cookies } from "next/headers";
 
 const COOKIE = "lspd_session";
 export const ANNOUNCEMENT_ACCESS_ROLE_ID = "1559517530312278036";
+export const PHOTO_UPLOAD_ROLE_ID = "1559517530312278036";
+
+export function canManagePhotos(session: Pick<Session, "roles"> | null | undefined): boolean {
+  return !!session?.roles?.includes(PHOTO_UPLOAD_ROLE_ID);
+}
 
 export function canManageAnnouncements(session: Pick<Session, "roles"> | null | undefined): boolean {
   return !!session?.roles?.includes(ANNOUNCEMENT_ACCESS_ROLE_ID);

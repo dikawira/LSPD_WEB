@@ -1,36 +1,156 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, canManageAnnouncements } from "@/lib/auth";
+import { getSession, canManageAnnouncements, canManagePhotos } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
-const allowedKinds = new Set(["officers", "attendance", "announcements", "fleet", "weapons"]);
+
+const allowedKinds = new Set([
+  "officers",
+  "attendance",
+  "announcements",
+  "fleet",
+  "weapons",
+  "photos",
+  "photo-hidden"
+]);
+
 const response = (body: unknown, status = 200) => NextResponse.json(body, { status });
+
+const isHttpUrl = (value: unknown, optional = false) => {
+  if (optional && (value === undefined || value === null || value === "")) return true;
+  if (typeof value !== "string" || value.length > 2048) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+function databaseError(error: unknown, action: string) {
+  const err = error as { code?: string; message?: string; meta?: { table?: string } };
+  const code = String(err?.code || "");
+  console.error(`[LSPD Photo Gallery] ${action} failed`, error);
+
+  if (code === "P2021" || code === "P2022") {
+    return response({
+      error: "Tabel database untuk data portal belum tersedia atau belum sesuai. Jalankan `npx prisma migrate deploy` pada deployment, lalu restart aplikasi.",
+      code
+    }, 503);
+  }
+  if (code === "P1001" || code === "P1002" || code === "P1008" || code === "P1017") {
+    return response({
+      error: "Aplikasi tidak dapat terhubung ke database. Periksa DATABASE_URL dan DIRECT_URL di environment deployment.",
+      code
+    }, 503);
+  }
+  if (code === "P2002") {
+    return response({ error: "Data dengan ID tersebut sudah ada. Silakan coba publish kembali.", code }, 409);
+  }
+  return response({
+    error: `Gagal ${action} ke database${code ? ` (${code})` : ""}. Periksa log deployment untuk detail.`
+  }, 500);
+}
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return response({ error: "Unauthorized" }, 401);
+
   const kind = req.nextUrl.searchParams.get("kind");
   if (!kind || !allowedKinds.has(kind)) return response({ error: "Invalid kind" }, 400);
-  if (kind === "announcements" && !canManageAnnouncements(session)) return response({ error: "Forbidden" }, 403);
+  if (kind === "announcements" && !canManageAnnouncements(session)) {
+    return response({ error: "Forbidden" }, 403);
+  }
+
   try {
-    const rows = await prisma.portalRecord.findMany({ where: { kind }, orderBy: { updatedAt: "desc" } });
+    if (kind === "photos") {
+      const [rows, hiddenRows] = await prisma.$transaction([
+        prisma.portalRecord.findMany({
+          where: { kind: "photos" },
+          orderBy: { updatedAt: "desc" }
+        }),
+        prisma.portalRecord.findMany({
+          where: { kind: "photo-hidden" }
+        })
+      ]);
+      const hiddenIds = new Set(
+        hiddenRows.map(row => String((row.payload as { id?: unknown } | null)?.id ?? ""))
+      );
+      return response(rows.filter(row => !hiddenIds.has(row.id)).map(row => row.payload));
+    }
+
+    if (kind === "photo-hidden") {
+      const hiddenRows = await prisma.portalRecord.findMany({ where: { kind: "photo-hidden" } });
+      return response(hiddenRows.map(row => row.payload));
+    }
+
+    const rows = await prisma.portalRecord.findMany({
+      where: { kind },
+      orderBy: { updatedAt: "desc" }
+    });
     return response(rows.map(row => row.payload));
-  } catch {
-    return response({ error: "Database unavailable. Jalankan prisma migrate deploy." }, 503);
+  } catch (error) {
+    return databaseError(error, "membaca data");
   }
 }
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return response({ error: "Unauthorized" }, 401);
+
   try {
     const body = await req.json();
     const kind = String(body.kind || "");
     const records = body.records;
-    if (!allowedKinds.has(kind) || !Array.isArray(records)) return response({ error: "Invalid payload" }, 400);
-    if (kind === "announcements" && !canManageAnnouncements(session)) return response({ error: "Forbidden" }, 403);
-    if (records.length > 2000) return response({ error: "Too many records" }, 413);
-    const valid = records.filter((r: any) => r && typeof r.id === "string" && r.id.length <= 160);
+
+    if (!allowedKinds.has(kind) || !Array.isArray(records)) {
+      return response({ error: "Invalid payload" }, 400);
+    }
+    if (kind === "announcements" && !canManageAnnouncements(session)) {
+      return response({ error: "You don't have permission" }, 403);
+    }
+    if ((kind === "photos" || kind === "photo-hidden") && !canManagePhotos(session)) {
+      return response({ error: "You don't have permission" }, 403);
+    }
+    if (records.length < 1 || records.length > 2000) {
+      return response({ error: "Jumlah data tidak valid." }, 400);
+    }
+
+    const valid = records.filter((record: any) => {
+      if (!record || typeof record.id !== "string" || !record.id.trim() || record.id.length > 160) {
+        return false;
+      }
+      if (kind !== "photos") return true;
+
+      const categories = new Set([
+        "Headquarters",
+        "Patrol",
+        "Operations",
+        "Training",
+        "Events",
+        "Community",
+        "Other"
+      ]);
+
+      return typeof record.title === "string" &&
+        record.title.trim().length > 0 &&
+        record.title.length <= 120 &&
+        typeof record.category === "string" &&
+        categories.has(record.category) &&
+        isHttpUrl(record.url) &&
+        isHttpUrl(record.thumbnail, true) &&
+        (record.duration === undefined ||
+          (typeof record.duration === "string" && record.duration.length <= 500)) &&
+        (record.details === undefined ||
+          (typeof record.details === "string" && record.details.length <= 500));
+    });
+
+    if (valid.length !== records.length) {
+      return response({
+        error: "Data foto tidak valid. Pastikan judul, kategori, dan URL gambar HTTP(S) sudah benar."
+      }, 400);
+    }
+
     await prisma.$transaction(async tx => {
       for (const item of valid) {
         await tx.portalRecord.upsert({
@@ -38,26 +158,61 @@ export async function POST(req: NextRequest) {
           create: { id: item.id, kind, payload: item },
           update: { payload: item }
         });
+
+        if (kind === "photos") {
+          await tx.portalRecord.deleteMany({
+            where: { kind: "photo-hidden", id: `photo-hidden:${item.id}` }
+          });
+        }
       }
     });
+
     return response({ ok: true, saved: valid.length });
-  } catch {
-    return response({ error: "Gagal menyimpan data ke database" }, 400);
+  } catch (error) {
+    return databaseError(error, "menyimpan foto");
   }
 }
 
 export async function DELETE(req: NextRequest) {
   const session = await getSession();
   if (!session) return response({ error: "Unauthorized" }, 401);
+
   try {
     const body = await req.json();
     const kind = String(body.kind || "");
     const id = String(body.id || "");
-    if (!allowedKinds.has(kind) || !id) return response({ error: "Invalid payload" }, 400);
-    if (kind === "announcements" && !canManageAnnouncements(session)) return response({ error: "Forbidden" }, 403);
-    await prisma.portalRecord.deleteMany({ where: { kind, id } });
-    return response({ ok: true });
-  } catch {
-    return response({ error: "Gagal menghapus data" }, 400);
+
+    if (!allowedKinds.has(kind) || !id || id.length > 160) {
+      return response({ error: "Invalid payload" }, 400);
+    }
+    if (kind === "announcements" && !canManageAnnouncements(session)) {
+      return response({ error: "You don't have permission" }, 403);
+    }
+    if ((kind === "photos" || kind === "photo-hidden") && !canManagePhotos(session)) {
+      return response({ error: "You don't have permission" }, 403);
+    }
+
+    if (kind === "photos") {
+      const deletedRecords = await prisma.$transaction(async tx => {
+        const removed = await tx.portalRecord.deleteMany({ where: { kind: "photos", id } });
+        await tx.portalRecord.upsert({
+          where: { kind_id: { kind: "photo-hidden", id: `photo-hidden:${id}` } },
+          create: {
+            id: `photo-hidden:${id}`,
+            kind: "photo-hidden",
+            payload: { id }
+          },
+          update: { payload: { id } }
+        });
+        return removed.count;
+      });
+
+      return response({ ok: true, deletedRecords, hiddenGlobally: true });
+    }
+
+    const removed = await prisma.portalRecord.deleteMany({ where: { kind, id } });
+    return response({ ok: true, deletedRecords: removed.count });
+  } catch (error) {
+    return databaseError(error, "menghapus data");
   }
 }
