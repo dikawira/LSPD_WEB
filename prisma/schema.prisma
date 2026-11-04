@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum DutyStatus {
+  ON_DUTY
+  OFF_DUTY
+  ON_BREAK
+  LEAVE
+}
+
+model User {
+  id             String   @id @default(cuid())
+  discordId      String   @unique
+  username       String
+  globalName     String?
+  avatar         String?
+  fullName       String?
+  badgeNumber    String?
+  rank           String?
+  division       String?
+  callsign       String?
+  dutyStatus     DutyStatus @default(OFF_DUTY)
+  certifications String[] @default([])
+  lastLoginAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  attendance     Attendance[]
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  category    String?
+  authorId    String
+  authorName  String
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Attendance {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clockIn     DateTime
+  clockOut    DateTime?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  @@index([userId, clockIn])
+}
+
+model FleetVehicle {
+  id          String   @id @default(cuid())
+  name        String
+  plate       String?
+  vehicleType String?
+  status      String?
+  assignedTo  String?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Weapon {
+  id          String   @id @default(cuid())
+  name        String
+  weaponType  String?
+  serialNumber String?
+  status      String?
+  assignedTo  String?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
