@@ -81,3 +81,33 @@ This compatibility pass preserves the supplied HTML portal's existing browser-si
 - `DISCORD_ALLOWED_ROLE_IDS` controls who may enter the portal.
 - `DISCORD_ANNOUNCEMENT_ROLE_IDS` controls High Command announcement management.
 - Configure the Discord OAuth redirect URI as `https://YOUR_DOMAIN/api/auth/discord/callback` in the Discord Developer Portal.
+
+
+## Shared database synchronization (4 Nov 2026)
+
+The reference portal now hydrates these shared collections from PostgreSQL before its original UI initializes:
+- Officers / roster (`LSPD_OFFICERS_DATA_V2`)
+- Officer attendance (`LSPD_OFFICER_ATTENDANCE_V1`)
+- High Command announcements (`LSPD_CHIEF_ANNOUNCEMENTS_V1`)
+- Fleet (`LSPD_FLEET_DATA_V1`)
+- Weapons (`LSPD_WEAPON_DATA_V1`)
+
+Writes from the original forms are sent to `/api/portal-data`; records are stored in the `PortalRecord` table and become visible to other authenticated users. The portal refreshes these collections every 10 seconds. Announcement reads/writes require the Discord announcement role. Other portal collections require an authenticated portal session.
+
+### Apply the database migration
+Run:
+```bash
+bun install
+bunx prisma generate
+bunx prisma migrate deploy
+bun run build
+```
+The `DIRECT_URL` must point to a Supabase connection usable for migrations; `DATABASE_URL` is used by the app at runtime.
+
+### Important
+- The shared portal database table stores each legacy portal record as JSON so the existing reference UI can keep its original field names and workflows.
+- This avoids silently dropping legacy fields such as officer photos, badge/batch numbers, callsigns, division, attendance action, fleet model/unit, and weapon serial/assignment.
+- The first user opening an empty database will seed the original demo officer roster into the shared table from the portal's existing fallback data. Remove demo records from the portal after verifying the production roster.
+- The client refresh interval is 10 seconds. A change is sent immediately when the original portal saves it.
+- Concurrent edits to the exact same record are last-write-wins; separate record changes are merged independently.
+- Any records already stored only in a browser's old localStorage are not automatically uploaded from every device. Export/transfer them or open the old data-bearing browser once while authenticated and use the provided import procedure before relying on the shared DB.

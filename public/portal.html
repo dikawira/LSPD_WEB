@@ -1522,7 +1522,108 @@
   </footer>
 
   <!-- SCRIPT LOGIC -->
-  <script>
+  
+<script>
+(() => {
+  const nativeGet = Storage.prototype.getItem;
+  const nativeSet = Storage.prototype.setItem;
+  const nativeRemove = Storage.prototype.removeItem;
+  const keyKinds = {
+    LSPD_OFFICERS_DATA_V2: "officers",
+    LSPD_OFFICER_ATTENDANCE_V1: "attendance",
+    LSPD_CHIEF_ANNOUNCEMENTS_V1: "announcements",
+    LSPD_FLEET_DATA_V1: "fleet",
+    LSPD_WEAPON_DATA_V1: "weapons"
+  };
+  let hydrating = true;
+  let polling = false;
+  const parse = value => { try { const x=JSON.parse(value||"[]"); return Array.isArray(x)?x:[]; } catch { return []; } };
+  async function api(url, options={}) {
+    const res = await fetch(url, { credentials:"same-origin", ...options, headers:{"Content-Type":"application/json",...(options.headers||{})} });
+    if (!res.ok) throw new Error((await res.json().catch(()=>({}))).error || `HTTP ${res.status}`);
+    return res.json();
+  }
+  window.LSPD_SYNC_READY = (async () => {
+    for (const [key,kind] of Object.entries(keyKinds)) {
+      try {
+        const rows = await api(`/api/portal-data?kind=${kind}`);
+        const localRows = parse(nativeGet.call(localStorage,key));
+        if (rows.length === 0 && localRows.length > 0) {
+          await api("/api/portal-data",{method:"POST",body:JSON.stringify({kind,records:localRows})});
+          nativeSet.call(localStorage,key,JSON.stringify(localRows));
+        } else {
+          nativeSet.call(localStorage,key,JSON.stringify(rows));
+        }
+      } catch (e) {
+        console.error("LSPD database load failed:",kind,e);
+        if (kind !== "announcements") window.LSPD_SYNC_ERROR = "Gagal memuat "+kind+" dari database.";
+      }
+    }
+    hydrating = false;
+  })();
+
+  Storage.prototype.setItem = function(key,value) {
+    const previous = nativeGet.call(this,key);
+    nativeSet.call(this,key,value);
+    if (this !== localStorage || hydrating || !keyKinds[key]) return;
+    const kind = keyKinds[key], before = parse(previous), after = parse(value);
+    const beforeIds = new Set(before.map(x=>String(x.id)));
+    const afterIds = new Set(after.map(x=>String(x.id)));
+    const changed = after.filter(item => {
+      const old = before.find(x=>String(x.id)===String(item.id));
+      return !old || JSON.stringify(old)!==JSON.stringify(item);
+    });
+    const removed = [...beforeIds].filter(id=>!afterIds.has(id));
+    if (changed.length) api("/api/portal-data",{method:"POST",body:JSON.stringify({kind,records:changed})})
+      .catch(e=>{ console.error("LSPD save failed:",kind,e); window.LSPD_SYNC_ERROR="Gagal menyimpan "+kind+" ke database."; });
+    for (const id of removed) api("/api/portal-data",{method:"DELETE",body:JSON.stringify({kind,id})})
+      .catch(e=>{ console.error("LSPD delete failed:",kind,e); window.LSPD_SYNC_ERROR="Gagal menghapus data "+kind+" dari database."; });
+  };
+
+  window.LSPD_REFRESH_PORTAL = async () => {
+    if (polling || hydrating) return;
+    polling = true;
+    try {
+      for (const [key,kind] of Object.entries(keyKinds)) {
+        const remote = await api(`/api/portal-data?kind=${kind}`);
+        const current = parse(nativeGet.call(localStorage,key));
+        if (JSON.stringify(remote)!==JSON.stringify(current)) {
+          hydrating = true;
+          nativeSet.call(localStorage,key,JSON.stringify(remote));
+          hydrating = false;
+          if (kind==="officers") {
+            if (typeof loadOfficersFromStorage==="function") loadOfficersFromStorage();
+            if (typeof updateDashboardStats==="function") updateDashboardStats();
+            if (typeof renderChainOfCommand==="function") renderChainOfCommand();
+            if (typeof renderRosterTable==="function") renderRosterTable();
+            if (typeof renderRecentRegistrations==="function") renderRecentRegistrations();
+            if (typeof populateDropdowns==="function") populateDropdowns();
+            if (typeof populateAttendanceOfficerOptions==="function") populateAttendanceOfficerOptions();
+          }
+          if (kind==="attendance" && typeof renderAttendanceTable==="function") {
+            window.dispatchEvent(new CustomEvent("lspd:remote-refresh",{detail:{kind,records:remote}}));
+          }
+          if (kind==="fleet" && typeof renderFleetTable==="function") window.dispatchEvent(new CustomEvent("lspd:remote-refresh",{detail:{kind,records:remote}}));
+          if (kind==="weapons" && typeof renderWeaponTable==="function") window.dispatchEvent(new CustomEvent("lspd:remote-refresh",{detail:{kind,records:remote}}));
+          if (kind==="announcements" && typeof renderChiefAnnouncements==="function") window.dispatchEvent(new CustomEvent("lspd:remote-refresh",{detail:{kind,records:remote}}));
+        }
+      }
+    } catch(e) { console.warn("LSPD refresh:",e); }
+    finally { polling=false; }
+  };
+  setInterval(()=>window.LSPD_REFRESH_PORTAL(),10000);
+})();
+    window.addEventListener("lspd:remote-refresh", event => {
+      const {kind,records}=event.detail||{};
+      if (!Array.isArray(records)) return;
+      if (kind==="attendance") { officerAttendanceRecords=records; renderAttendanceTable(); }
+      if (kind==="fleet") { fleetRecords=records; renderFleetTable(); }
+      if (kind==="weapons") { weaponRecords=records; renderWeaponTable(); }
+      if (kind==="announcements") { chiefAnnouncements=records; renderChiefAnnouncements(); }
+    });
+</script>
+
+<script>
     // =========================================================================
     // CONSTANTS DATA DEFINITIONS
     // =========================================================================
@@ -1679,7 +1780,8 @@
     // LIFECYCLE & INITIALIZATION
     // =========================================================================
 
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (window.LSPD_SYNC_READY) await window.LSPD_SYNC_READY;
       loadOfficersFromStorage();
       populateDropdowns();
       populateCertificationCheckboxes();
@@ -3068,6 +3170,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyAccess);
   else applyAccess();
 })();
+
 </script>
 
 </body>
