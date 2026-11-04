@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCode, getDiscordIdentity, getGuildMember, discordConfig } from "@/lib/discord";
-import { createSession, hasAnyRole, roleIds } from "@/lib/auth";
+import { createSession, hasAnyRole, roleIds, ANNOUNCEMENT_ACCESS_ROLE_ID } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
     const identity = await getDiscordIdentity(token.access_token);
     const member = await getGuildMember(token.access_token, cfg.guildId);
     const allowedRoles = roleIds("DISCORD_ALLOWED_ROLE_IDS");
-    const announcementRoles = roleIds("DISCORD_ANNOUNCEMENT_ROLE_IDS");
+    // Announcement access is tied to this exact Discord role ID.
+    const announcementRoles = [ANNOUNCEMENT_ACCESS_ROLE_ID];
 
     // Fail closed: an empty allow-list or absent guild membership never grants access.
     if (!member || !hasAnyRole(member.roles, allowedRoles)) return NextResponse.redirect(new URL("/?error=access_denied", request.url));

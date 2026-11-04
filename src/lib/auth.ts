@@ -2,6 +2,11 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 const COOKIE = "lspd_session";
+export const ANNOUNCEMENT_ACCESS_ROLE_ID = "1559517530312278036";
+
+export function canManageAnnouncements(session: Pick<Session, "roles"> | null | undefined): boolean {
+  return !!session?.roles?.includes(ANNOUNCEMENT_ACCESS_ROLE_ID);
+}
 const secret = () => {
   const value = process.env.AUTH_SECRET;
   if (!value) throw new Error("AUTH_SECRET belum dikonfigurasi");

@@ -703,7 +703,7 @@
 
           <div class="pt-2 flex flex-wrap gap-4">
             <button onclick="switchTab('registration')" class="px-6 py-3.5 rounded-xl bg-lspd-gold text-lspd-dark font-tactical font-bold text-lg hover:bg-lspd-gold-hover transition-all shadow-lg glow-gold flex items-center space-x-2">
-              <i class="fa-solid fa-pen-to-square"></i><span>Absen / Isi Data Diri</span>
+              <i class="fa-solid fa-pen-to-square"></i><span>Registrasi Officer</span>
             </button>
             <button onclick="switchTab('chain')" class="px-6 py-3.5 rounded-xl bg-lspd-card text-slate-100 border border-lspd-border font-tactical font-semibold text-lg hover:bg-lspd-border transition-all flex items-center space-x-2">
               <i class="fa-solid fa-sitemap"></i><span>Lihat Chain of Command</span>
@@ -1877,6 +1877,10 @@
     // =========================================================================
 
     function switchTab(tabName) {
+      if (tabName === "announcements" && window.LSPD_ANNOUNCEMENTS_ALLOWED !== true) {
+        showAnnouncementAccessDenied();
+        return;
+      }
       const views = ["landing", "chain", "dashboard", "registration", "attendance", "roster", "fleet", "weapons", "announcements"];
       views.forEach(v => {
         const viewEl = document.getElementById(`view-${v}`);
@@ -3145,32 +3149,51 @@
 
 <script>
 (() => {
-  const applyAccess = async () => {
-    try {
-      const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
-      if (!response.ok) return;
-      const session = await response.json();
-      const allowed = !!session.canManageAnnouncements;
-      const nav = document.getElementById('nav-announcements');
-      const form = document.getElementById('announcementForm');
-      const list = document.getElementById('managedAnnouncementsList');
-      if (!allowed) {
-        if (nav) nav.style.display = 'none';
-        if (form) form.style.display = 'none';
-        if (list) list.style.display = 'none';
-        const view = document.getElementById('view-announcements');
-        if (view) view.innerHTML = '<div class="glass-card rounded-2xl p-8 text-center"><h2 class="text-xl font-bold text-white">Akses Terbatas</h2><p class="mt-2 text-sm text-slate-400">Pusat Pengumuman hanya dapat diakses oleh pemegang role High Command yang berwenang.</p></div>';
-      }
-      const user = document.createElement('div');
-      user.className = 'fixed right-4 top-3 z-[60] rounded-full border border-amber-300/25 bg-slate-950/90 px-3 py-2 text-xs text-slate-200 shadow-xl';
-      user.textContent = (session.globalName || session.username || 'Authorized Officer') + ' · DISCORD AUTHENTICATED';
-      document.body.appendChild(user);
-    } catch (_) {}
+  window.LSPD_ANNOUNCEMENTS_ALLOWED = false;
+
+  window.showAnnouncementAccessDenied = function () {
+    document.getElementById("announcementAccessDeniedModal")?.remove();
+    const modal = document.createElement("div");
+    modal.id = "announcementAccessDeniedModal";
+    modal.className = "fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4";
+    modal.innerHTML = `
+      <div class="w-full max-w-md rounded-2xl border border-rose-500/40 bg-[#0d1929] p-7 text-center shadow-2xl">
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-rose-500/40 bg-rose-500/10">
+          <i class="fa-solid fa-lock text-2xl text-rose-400"></i>
+        </div>
+        <div class="text-xs font-bold uppercase tracking-[.25em] text-rose-300">Access Restricted</div>
+        <h2 class="mt-2 text-2xl font-extrabold text-white">Anda Tidak Memiliki Akses</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-300">Menu Pengumuman hanya dapat dibuka oleh akun Discord yang memiliki role High Command yang ditentukan.</p>
+        <p class="mt-3 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 font-mono text-xs text-amber-300">Required Role ID: 1559517530312278036</p>
+        <button id="closeAnnouncementAccessDenied" class="mt-6 w-full rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white hover:bg-rose-500">Mengerti</button>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector("#closeAnnouncementAccessDenied").addEventListener("click", () => modal.remove());
+    modal.addEventListener("click", e => { if (e.target === modal) modal.remove(); });
   };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyAccess);
+
+  const applyAccess = async () => {
+    const nav = document.getElementById("nav-announcements");
+    try {
+      const response = await fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error("Session tidak valid");
+      const session = await response.json();
+      window.LSPD_ANNOUNCEMENTS_ALLOWED = session.canManageAnnouncements === true;
+      if (!window.LSPD_ANNOUNCEMENTS_ALLOWED && nav) {
+        nav.classList.add("opacity-80");
+        nav.title = "Akses khusus role Discord 1559517530312278036";
+      }
+      const user = document.createElement("div");
+      user.className = "fixed right-4 top-3 z-[60] rounded-full border border-amber-300/25 bg-slate-950/90 px-3 py-2 text-xs text-slate-200 shadow-xl";
+      user.textContent = (session.globalName || session.username || "Authorized Officer") + " · DISCORD AUTHENTICATED";
+      document.body.appendChild(user);
+    } catch (_) {
+      window.LSPD_ANNOUNCEMENTS_ALLOWED = false;
+    }
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", applyAccess);
   else applyAccess();
 })();
-
 </script>
 
 </body>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession, canManageAnnouncements } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,6 @@ export async function GET() {
     username: session.username,
     globalName: session.globalName,
     avatar: session.avatar,
-    canManageAnnouncements: session.canManageAnnouncements
+    canManageAnnouncements: canManageAnnouncements(session)
   });
 }

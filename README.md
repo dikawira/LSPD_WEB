@@ -111,3 +111,12 @@ The `DIRECT_URL` must point to a Supabase connection usable for migrations; `DAT
 - The client refresh interval is 10 seconds. A change is sent immediately when the original portal saves it.
 - Concurrent edits to the exact same record are last-write-wins; separate record changes are merged independently.
 - Any records already stored only in a browser's old localStorage are not automatically uploaded from every device. Export/transfer them or open the old data-bearing browser once while authenticated and use the provided import procedure before relying on the shared DB.
+
+
+## High Command Announcements access gate
+
+The **Pengumuman** navigation item remains visible to all logged-in personnel. Clicking it opens an access-denied popup unless the authenticated Discord guild member has the exact role ID `1559517530312278036`.
+
+The same role check is enforced server-side on announcement data APIs (read/create/update/delete), not just in the browser. The check uses the Discord role IDs captured during OAuth guild-member verification. Users without the role cannot bypass the restriction by calling the API directly.
+
+After changing this code, redeploy the application to Vercel. Users should sign out and sign in again so their session is refreshed with current Discord roles. Ensure the Discord bot/OAuth member lookup still returns the user's current guild roles.
