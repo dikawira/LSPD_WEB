@@ -3645,6 +3645,9 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
           <a href="https://dikawira.github.io/LSPD---Ver-1.5/" target="_blank" rel="noopener noreferrer" class="nav-btn px-3.5 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-lspd-card transition-all flex items-center space-x-2" title="Open LSPD Officer Handbook">
             <i class="fa-solid fa-book-open text-sm text-lspd-gold"></i><span>LSPD Handbook</span><i class="fa-solid fa-arrow-up-right-from-square text-[10px] opacity-60"></i>
           </a>
+          <a href="https://callsigngenerator21.netlify.app/" target="_blank" rel="noopener noreferrer" class="nav-btn px-3.5 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-lspd-card transition-all flex items-center space-x-2" title="Open Call Sign Generator">
+            <i class="fa-solid fa-id-badge text-sm text-lspd-gold"></i><span>Call Sign Generator</span><i class="fa-solid fa-arrow-up-right-from-square text-[10px] opacity-60"></i>
+          </a>
         </nav>
 
         <!-- MOBILE MENU BUTTON -->
@@ -3685,6 +3688,9 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
       </button>
       <a href="https://dikawira.github.io/LSPD---Ver-1.5/" target="_blank" rel="noopener noreferrer" class="w-full text-left px-4 py-2.5 rounded-lg text-slate-200 hover:bg-lspd-card flex items-center space-x-3">
         <i class="fa-solid fa-book-open w-6 text-lspd-gold"></i><span>LSPD Handbook</span><i class="fa-solid fa-arrow-up-right-from-square text-[10px] opacity-60 ml-auto"></i>
+      </a>
+      <a href="https://callsigngenerator21.netlify.app/" target="_blank" rel="noopener noreferrer" class="w-full text-left px-4 py-2.5 rounded-lg text-slate-200 hover:bg-lspd-card flex items-center space-x-3">
+        <i class="fa-solid fa-id-badge w-6 text-lspd-gold"></i><span>Call Sign Generator</span><i class="fa-solid fa-arrow-up-right-from-square text-[10px] opacity-60 ml-auto"></i>
       </a>
       <button onclick="switchTab('weapons'); toggleMobileMenu();" class="w-full text-left px-4 py-2.5 rounded-lg text-slate-200 hover:bg-lspd-card flex items-center space-x-3">
         <i class="fa-solid fa-crosshairs w-6 text-rose-400"></i><span>Weapon Data</span>
@@ -7311,6 +7317,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
   const homeItem=nav.querySelector('#nav-landing');
   const chainItem=nav.querySelector('#nav-chain');
   const handbookItem=[...nav.querySelectorAll(':scope > a')].find(a=>/Handbook/i.test(a.textContent));
+  const callSignItem=[...nav.querySelectorAll(':scope > a')].find(a=>/Call Sign Generator/i.test(a.textContent));
   const officerGroup=makeMegaGroup('lspdMegaOfficerManagement','Officer Management',[
     navItem('nav-registration','Manage new officer applications'),
     navItem('nav-attendance','Track officer duty and presence'),
@@ -7343,7 +7350,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
 
   // Keep Home, Chain of Command and Handbook as direct links; organize the rest.
   nav.replaceChildren();
-  [homeItem,chainItem,officerGroup,operationsGroup,dataGroup,mediaGroup,handbookItem]
+  [homeItem,chainItem,officerGroup,operationsGroup,dataGroup,mediaGroup,handbookItem,callSignItem]
     .filter(Boolean).forEach(item=>nav.appendChild(item));
 
   // Close dropdowns on outside click or Escape; close after a menu choice.
@@ -7379,7 +7386,8 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
     const mobileFleet=findMobile('fleet');
     const mobileWeapons=findMobile('weapons');
     const mobileAnnouncements=findMobile('announcements');
-    const mobileHandbook=mobileMenu.querySelector(':scope > a');
+    const mobileHandbook=[...mobileMenu.querySelectorAll(':scope > a')].find(a=>/Handbook/i.test(a.textContent));
+    const mobileCallSign=[...mobileMenu.querySelectorAll(':scope > a')].find(a=>/Call Sign Generator/i.test(a.textContent));
     const mobileMedia=mobileMenu.querySelector('.lspd-mobile-media');
 
     const makeMobileGroup=(label,icon,items)=>{
@@ -7406,7 +7414,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
       makeMobileGroup('Department Data','fa-solid fa-chart-column',[mobileDashboard]),
       makeMobileGroup('Media & Communications','fa-solid fa-bullhorn',[mobileAnnouncements,mobileMedia])
     ];
-    mobileMenu.replaceChildren(...[mobileHome,mobileChain,...groups,mobileHandbook].filter(Boolean));
+    mobileMenu.replaceChildren(...[mobileHome,mobileChain,...groups,mobileHandbook,mobileCallSign].filter(Boolean));
     mobileMenu.dataset.megaGrouped='1';
   };
   buildMobileMegaMenu();
