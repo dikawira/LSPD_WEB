@@ -99,3 +99,12 @@ Form Fleet Data dan Weapon Data memakai dropdown officer yang sama dengan Office
 - Data inventaris menyimpan `officerId` / `assignedOfficerId` beserta nama, badge, rank, sehingga hubungan tidak lagi hanya bergantung pada teks.
 - Satu officer dapat memiliki beberapa kendaraan dan beberapa senjata. Semua record yang terhubung tampil sebagai kartu terpisah di bagian Assigned Inventory, dengan hitungan per kategori dan scroll bila jumlahnya banyak.
 - Data lama tetap dicoba dicocokkan berdasarkan nama, badge, atau identitas yang sudah tersimpan; data baru menggunakan officer ID.
+
+
+## Mobile layout repair (5 Nov 2026)
+- Header desktop mega-navigation is hidden on compact/device-width layouts; mobile navigation uses the grouped accordion menu already generated from the main menu.
+- Removed the extra fixed-position `DISCORD AUTHENTICATED` badge because the authenticated user is already represented in the header account control.
+- Dashboard, Attendance, Directory, Fleet and Weapon tables retain readable column widths and use native horizontal scrolling on phones instead of shrinking columns until text breaks vertically.
+- Status pills and action controls are kept on one line.
+- Fleet, Weapon, Attendance and Registration form sub-grids stack into one column on phones.
+- Landing hero actions stack vertically and the photo gallery cards become a single-column list on compact screens.

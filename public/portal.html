@@ -2852,6 +2852,609 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
 }
 </style>
 
+
+<style id="lspd-mobile-layout-final-fix">
+/* ------------------------------------------------------------------
+   LSPD MOBILE LAYOUT
+   Dedicated touch layout for compact phones and in-app iOS browsers.
+   Desktop mega navigation remains unchanged above this breakpoint.
+------------------------------------------------------------------- */
+@media screen and (max-width: 900px), screen and (max-device-width: 900px) {
+  html, body {
+    width:100% !important;
+    max-width:100% !important;
+    overflow-x:hidden !important;
+    -webkit-text-size-adjust:100% !important;
+  }
+  body { min-width:0 !important; }
+  *, *::before, *::after { box-sizing:border-box; }
+
+  /* Header: brand + account controls + one menu button. */
+  header.sticky {
+    position:sticky !important;
+    top:0 !important;
+    z-index:500 !important;
+    display:block !important;
+    width:100% !important;
+    height:auto !important;
+    min-height:62px !important;
+    overflow:visible !important;
+    -webkit-backdrop-filter:none !important;
+    backdrop-filter:none !important;
+  }
+  header.sticky > .max-w-7xl {
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    height:auto !important;
+    margin:0 !important;
+    padding:0 12px !important;
+  }
+  header.sticky > .max-w-7xl > .flex.items-center.justify-between.h-20 {
+    display:flex !important;
+    flex-flow:row nowrap !important;
+    justify-content:space-between !important;
+    align-items:center !important;
+    gap:8px !important;
+    width:100% !important;
+    height:62px !important;
+    min-height:62px !important;
+    padding:0 !important;
+    overflow:visible !important;
+  }
+
+  header.sticky .flex.items-center.space-x-4.cursor-pointer {
+    display:flex !important;
+    flex:1 1 auto !important;
+    width:auto !important;
+    min-width:0 !important;
+    max-width:none !important;
+    gap:8px !important;
+    white-space:normal !important;
+    overflow:hidden !important;
+  }
+  header.sticky .flex.items-center.space-x-4.cursor-pointer > div:first-child {
+    display:flex !important;
+    flex:0 0 38px !important;
+    width:38px !important;
+    min-width:38px !important;
+    height:38px !important;
+    min-height:38px !important;
+    border-radius:50% !important;
+    overflow:hidden !important;
+  }
+  header.sticky .flex.items-center.space-x-4.cursor-pointer img {
+    width:100% !important;
+    height:100% !important;
+    object-fit:contain !important;
+  }
+  header.sticky .flex.items-center.space-x-4.cursor-pointer .font-tactical.text-2xl,
+  header.sticky .flex.items-center.space-x-4.cursor-pointer .text-\[10px] {
+    display:none !important;
+  }
+  header.sticky .flex.items-center.space-x-4.cursor-pointer p {
+    display:block !important;
+    min-width:0 !important;
+    max-width:150px !important;
+    margin:0 !important;
+    color:#f4f5f7 !important;
+    font:800 10px/1.16 Inter,Arial,sans-serif !important;
+    letter-spacing:.015em !important;
+    white-space:normal !important;
+    overflow-wrap:normal !important;
+  }
+
+  /* Never show the desktop mega navigation on a phone. */
+  header.sticky nav,
+  header.sticky nav.hidden.lg\:flex {
+    display:none !important;
+    visibility:hidden !important;
+    width:0 !important;
+    height:0 !important;
+    flex:none !important;
+  }
+  header.sticky .flex.lg\:hidden {
+    display:flex !important;
+    flex:0 0 42px !important;
+    width:42px !important;
+    min-width:42px !important;
+    height:42px !important;
+    align-items:center !important;
+    justify-content:center !important;
+    order:3 !important;
+  }
+  header.sticky #mobileMenuBtn {
+    display:grid !important;
+    place-items:center !important;
+    width:40px !important;
+    min-width:40px !important;
+    height:40px !important;
+    padding:0 !important;
+    border:1px solid rgba(215,181,109,.34) !important;
+    border-radius:10px !important;
+    background:#101b2b !important;
+    color:#f5d16c !important;
+  }
+  header.sticky #mobileMenuBtn i {font-size:17px !important}
+
+  /* Header utility buttons and account chip stay compact; no username pill overlaps. */
+  header.sticky #lspdNavTools {
+    display:flex !important;
+    flex:0 0 auto !important;
+    width:auto !important;
+    min-width:0 !important;
+    max-width:none !important;
+    height:auto !important;
+    align-items:center !important;
+    justify-content:flex-end !important;
+    gap:7px !important;
+    margin:0 0 0 auto !important;
+    padding:0 !important;
+    order:2 !important;
+  }
+  header.sticky #lspdNavTools #lspdThemeToggle {
+    display:flex !important;
+    flex:0 0 auto !important;
+    gap:1px !important;
+    padding:2px !important;
+    border-radius:18px !important;
+  }
+  header.sticky #lspdNavTools #lspdThemeToggle button {
+    display:grid !important;
+    place-items:center !important;
+    width:23px !important;
+    height:23px !important;
+    font-size:11px !important;
+  }
+  header.sticky #lspdNavTools #lspdNotificationButton {
+    display:grid !important;
+    flex:0 0 24px !important;
+    width:24px !important;
+    height:30px !important;
+    font-size:17px !important;
+  }
+  header.sticky #lspdNavTools #lspdUserChip {
+    display:flex !important;
+    flex:0 0 auto !important;
+    align-items:center !important;
+    gap:0 !important;
+    width:auto !important;
+    min-width:0 !important;
+    padding:0 !important;
+    background:transparent !important;
+    white-space:nowrap !important;
+  }
+  header.sticky #lspdNavTools #lspdUserChip .user-medal {
+    display:grid !important;
+    flex:0 0 32px !important;
+    width:32px !important;
+    min-width:32px !important;
+    height:32px !important;
+    border:1.5px solid #dcb52b !important;
+    border-radius:50% !important;
+  }
+  header.sticky #lspdNavTools #lspdUserChip .user-copy,
+  header.sticky #lspdNavTools #lspdUserChip > i:first-child,
+  header.sticky #lspdNavTools #lspdUserChip > i:last-child {
+    display:none !important;
+  }
+  #lspdAccountPanel {
+    position:fixed !important;
+    top:70px !important;
+    right:10px !important;
+    left:auto !important;
+    width:min(278px,calc(100vw - 20px)) !important;
+    max-width:calc(100vw - 20px) !important;
+    z-index:10020 !important;
+  }
+
+  /* Mobile grouped menu: full-width accordion, never a desktop flyout. */
+  header.sticky #mobileMenu,
+  header.sticky #mobileMenu:not(.hidden) {
+    position:absolute !important;
+    top:100% !important;
+    left:0 !important;
+    right:0 !important;
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    max-height:calc(100dvh - 72px) !important;
+    overflow-x:hidden !important;
+    overflow-y:auto !important;
+    overscroll-behavior:contain !important;
+    -webkit-overflow-scrolling:touch !important;
+    padding:10px 12px calc(18px + env(safe-area-inset-bottom)) !important;
+    border-top:1px solid rgba(215,181,109,.22) !important;
+    border-bottom:1px solid rgba(215,181,109,.22) !important;
+    background:rgba(5,11,20,.985) !important;
+    box-shadow:0 18px 30px rgba(0,0,0,.48) !important;
+    font-family:Inter,Arial,sans-serif !important;
+  }
+  header.sticky #mobileMenu.hidden {display:none !important}
+  #mobileMenu > button,
+  #mobileMenu > a {
+    display:flex !important;
+    align-items:center !important;
+    width:100% !important;
+    min-height:44px !important;
+    margin:3px 0 !important;
+    padding:11px 13px !important;
+    border:1px solid rgba(148,163,184,.12) !important;
+    border-radius:9px !important;
+    background:rgba(255,255,255,.025) !important;
+    color:#e7edf5 !important;
+    font:650 13px/1.25 Inter,Arial,sans-serif !important;
+    white-space:normal !important;
+    text-align:left !important;
+  }
+  #mobileMenu .lspd-mobile-mega-group {
+    display:block !important;
+    width:100% !important;
+    margin:7px 0 !important;
+    border:1px solid rgba(148,163,184,.18) !important;
+    border-radius:10px !important;
+    background:#0a1422 !important;
+    overflow:hidden !important;
+  }
+  #mobileMenu .lspd-mobile-mega-trigger {
+    display:flex !important;
+    justify-content:space-between !important;
+    align-items:center !important;
+    width:100% !important;
+    min-height:48px !important;
+    padding:12px 14px !important;
+    background:transparent !important;
+    color:#f4d16b !important;
+    font:750 13px/1.2 Inter,Arial,sans-serif !important;
+  }
+  #mobileMenu .lspd-mobile-mega-panel {
+    display:flex !important;
+    flex-direction:column !important;
+    gap:4px !important;
+    padding:7px 8px 9px !important;
+    border-top:1px solid rgba(148,163,184,.14) !important;
+  }
+  #mobileMenu .lspd-mobile-mega-panel[hidden] {display:none !important}
+  #mobileMenu .lspd-mobile-mega-panel > .nav-btn,
+  #mobileMenu .lspd-mobile-mega-panel > a,
+  #mobileMenu .lspd-mobile-mega-panel > .lspd-mobile-media {
+    display:flex !important;
+    width:100% !important;
+    min-height:42px !important;
+    align-items:center !important;
+    margin:0 !important;
+    padding:10px 12px !important;
+    border:1px solid transparent !important;
+    border-radius:8px !important;
+    background:rgba(255,255,255,.025) !important;
+    color:#dce5f0 !important;
+    font:600 12px/1.25 Inter,Arial,sans-serif !important;
+    white-space:normal !important;
+    text-align:left !important;
+  }
+  #mobileMenu .lspd-mobile-media {
+    display:flex !important;
+    flex-direction:column !important;
+    gap:4px !important;
+    width:100% !important;
+    padding:8px 10px !important;
+    border:1px solid rgba(215,181,109,.18) !important;
+    border-radius:8px !important;
+    background:rgba(215,181,109,.045) !important;
+  }
+  #mobileMenu .lspd-mobile-media > div:first-child {
+    padding:5px 6px !important;
+    color:#f4d16b !important;
+    font:800 10px/1.2 Inter,Arial,sans-serif !important;
+    letter-spacing:.12em !important;
+  }
+  #mobileMenu .lspd-mobile-media button {
+    display:flex !important;
+    align-items:center !important;
+    width:100% !important;
+    min-height:38px !important;
+    padding:8px 10px !important;
+    border:1px solid transparent !important;
+    border-radius:7px !important;
+    background:rgba(255,255,255,.035) !important;
+    color:#dce5f0 !important;
+    font:600 11px/1.2 Inter,Arial,sans-serif !important;
+    text-align:left !important;
+  }
+  #mobileMenu .lspd-mobile-media button[hidden],
+  #mobileMenu .lspd-mobile-media[hidden] {display:none !important}
+
+  /* No duplicate fixed Discord chip over the content. */
+  body > .lspd-authenticated-floating,
+  body > div.fixed.right-4.top-3.z-\[60\] {display:none !important}
+
+  /* Global page sizing and typography. */
+  main {
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    padding:18px 12px 34px !important;
+    margin:0 auto !important;
+  }
+  main > section:not(.hidden) {
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    gap:16px !important;
+  }
+  section h1 {font-size:clamp(22px,6vw,29px) !important;line-height:1.15 !important}
+  section h2 {font-size:17px !important;line-height:1.25 !important}
+  section h3 {font-size:14px !important;line-height:1.3 !important}
+  .glass-card,.glass-card-gold {
+    min-width:0 !important;
+    max-width:100% !important;
+    padding:15px !important;
+    -webkit-backdrop-filter:none !important;
+    backdrop-filter:none !important;
+  }
+  input,select,textarea,button {max-width:100%}
+  input,select,textarea {font-size:14px !important}
+  label {line-height:1.35 !important}
+  .text-xs {line-height:1.4}
+
+  /* Landing hero: stack the actions and avoid a side-by-side overflow. */
+  #view-landing > .relative.rounded-3xl {
+    min-height:0 !important;
+    height:auto !important;
+    padding:30px 18px !important;
+    margin:0 !important;
+    background-position:62% center !important;
+  }
+  #view-landing h1.font-tactical {
+    max-width:100% !important;
+    font-size:clamp(30px,8vw,42px) !important;
+    line-height:.98 !important;
+  }
+  #view-landing > .relative.rounded-3xl p {
+    max-width:100% !important;
+    font-size:14px !important;
+    line-height:1.55 !important;
+  }
+  #view-landing > .relative.rounded-3xl .pt-2 {
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:stretch !important;
+    width:100% !important;
+    gap:9px !important;
+  }
+  #view-landing > .relative.rounded-3xl .pt-2 button {
+    width:100% !important;
+    max-width:100% !important;
+    justify-content:center !important;
+    min-height:46px !important;
+    padding:11px 13px !important;
+  }
+  #lspdMediaCenter {
+    width:100% !important;
+    max-width:100% !important;
+    margin:16px auto !important;
+    padding:0 !important;
+  }
+  .lspd-media-heading {
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:flex-start !important;
+    gap:7px !important;
+  }
+  .lspd-media-heading h2 {font-size:21px !important}
+  .lspd-media-heading p {border:0 !important;padding:0 !important}
+  .lspd-photo-grid {grid-template-columns:1fr !important;gap:14px !important}
+  .lspd-photo-thumb {height:190px !important}
+  #view-landing > .grid.grid-cols-1.sm\:grid-cols-2.lg\:grid-cols-4 {
+    width:100% !important;
+    max-width:100% !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:8px !important;
+  }
+
+  /* All data tables scroll horizontally as tables; never squeeze columns into vertical words. */
+  #view-dashboard .overflow-x-auto,
+  #view-attendance .overflow-x-auto,
+  #view-roster .overflow-x-auto,
+  #view-fleet .overflow-x-auto,
+  #view-weapons .overflow-x-auto {
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+    -webkit-overflow-scrolling:touch !important;
+    overscroll-behavior-x:contain !important;
+    touch-action:pan-x pan-y !important;
+    scrollbar-width:thin !important;
+  }
+  #view-dashboard .overflow-x-auto > table,
+  #view-attendance .overflow-x-auto > table,
+  #view-roster .overflow-x-auto > table,
+  #view-fleet .overflow-x-auto > table,
+  #view-weapons .overflow-x-auto > table {
+    display:table !important;
+    width:max-content !important;
+    max-width:none !important;
+    table-layout:auto !important;
+    border-collapse:separate !important;
+    min-width:680px !important;
+  }
+  #view-dashboard .overflow-x-auto > table {min-width:720px !important}
+  #view-attendance .overflow-x-auto > table {min-width:740px !important}
+  #view-roster .overflow-x-auto > table {min-width:820px !important}
+  #view-fleet .overflow-x-auto > table {min-width:1080px !important}
+  #view-weapons .overflow-x-auto > table {min-width:820px !important}
+
+  #view-dashboard th,#view-dashboard td,
+  #view-attendance th,#view-attendance td,
+  #view-roster th,#view-roster td,
+  #view-fleet th,#view-fleet td,
+  #view-weapons th,#view-weapons td {
+    min-width:0 !important;
+    max-width:none !important;
+    overflow:visible !important;
+    text-overflow:clip !important;
+    overflow-wrap:normal !important;
+    word-break:normal !important;
+    white-space:normal !important;
+    vertical-align:middle !important;
+    padding:10px 12px !important;
+  }
+  #view-dashboard th,#view-attendance th,
+  #view-roster th,#view-fleet th,#view-weapons th {
+    white-space:nowrap !important;
+    font-size:10px !important;
+    letter-spacing:.035em !important;
+  }
+  #view-dashboard td,#view-attendance td,#view-roster td,
+  #view-fleet td,#view-weapons td {font-size:11px !important;line-height:1.4 !important}
+  #view-attendance td:first-child,
+  #view-roster td:first-child {min-width:140px !important}
+  #view-attendance td:nth-child(3),
+  #view-dashboard td:nth-child(4) {min-width:150px !important}
+  #view-attendance td:nth-child(4),
+  #view-dashboard td:nth-child(5) {min-width:105px !important}
+  #view-attendance td:nth-child(5),
+  #view-attendance td:nth-child(6),
+  #view-dashboard td:nth-child(6) {min-width:105px !important}
+  #view-fleet td:last-child,#view-weapons td:last-child {
+    position:sticky !important;
+    right:0 !important;
+    z-index:4 !important;
+    min-width:118px !important;
+    max-width:118px !important;
+    width:118px !important;
+    white-space:nowrap !important;
+    background:#08111f !important;
+    box-shadow:-8px 0 12px rgba(0,0,0,.24) !important;
+  }
+  #view-fleet th:last-child,#view-weapons th:last-child {
+    position:sticky !important;
+    right:0 !important;
+    z-index:6 !important;
+    min-width:118px !important;
+    max-width:118px !important;
+    width:118px !important;
+    background:#14263b !important;
+    white-space:nowrap !important;
+  }
+  .inventory-status-cell {min-width:112px !important;width:112px !important;white-space:nowrap !important}
+  .inventory-status-badge {
+    display:inline-flex !important;
+    flex-wrap:nowrap !important;
+    width:max-content !important;
+    min-width:max-content !important;
+    max-width:none !important;
+    white-space:nowrap !important;
+    overflow-wrap:normal !important;
+    word-break:keep-all !important;
+    line-height:1 !important;
+  }
+  .lspd-inventory-action-group {
+    display:flex !important;
+    flex-flow:row nowrap !important;
+    justify-content:center !important;
+    align-items:center !important;
+    gap:4px !important;
+    min-width:0 !important;
+    width:100% !important;
+    white-space:nowrap !important;
+  }
+  .lspd-inventory-action {
+    flex:0 0 30px !important;
+    width:30px !important;
+    min-width:30px !important;
+    max-width:30px !important;
+    height:30px !important;
+    min-height:30px !important;
+    padding:0 !important;
+  }
+
+  /* Forms become one comfortable column. */
+  #view-fleet form,#view-weapons form,#view-attendance form,
+  #view-registration form {
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    padding:16px !important;
+  }
+  #view-fleet form .grid.grid-cols-2,
+  #view-weapons form .grid.grid-cols-2,
+  #view-attendance form .grid.grid-cols-2,
+  #view-registration form .grid.grid-cols-2 {
+    grid-template-columns:minmax(0,1fr) !important;
+  }
+  #view-fleet form input,#view-fleet form select,#view-fleet form textarea,
+  #view-weapons form input,#view-weapons form select,#view-weapons form textarea,
+  #view-attendance form input,#view-attendance form select,#view-attendance form textarea,
+  #view-registration form input,#view-registration form select,#view-registration form textarea {
+    width:100% !important;
+    min-width:0 !important;
+  }
+  #view-attendance .flex.items-center.justify-between.border-b {
+    align-items:flex-start !important;
+    flex-direction:column !important;
+    gap:8px !important;
+  }
+
+  /* Dashboard and section headers wrap cleanly without overlapping counters. */
+  #view-dashboard .glass-card > .flex.items-center.justify-between,
+  #view-dashboard .glass-card > .flex.flex-col.sm\:flex-row {
+    align-items:flex-start !important;
+    flex-direction:column !important;
+    gap:9px !important;
+  }
+  #view-dashboard .glass-card > .flex.items-center.justify-between > span {
+    align-self:flex-start !important;
+  }
+  #view-chain .glass-card, #view-roster .glass-card,
+  #view-dashboard .glass-card, #view-attendance .glass-card,
+  #view-fleet .glass-card, #view-weapons .glass-card {
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+  }
+
+  /* Profile and upload dialogs fit phones. */
+  #officerModal {padding:10px !important}
+  #officerModal > div {width:100% !important;max-width:100% !important;padding:16px !important}
+  #lspdUploadModal {padding:10px !important}
+  #lspdUploadModal .upload-panel {width:100% !important;max-width:100% !important}
+}
+
+/* Extra compact phones: remove any remaining fixed desktop widths. */
+@media screen and (max-width: 480px), screen and (max-device-width: 480px) {
+  header.sticky > .max-w-7xl {padding-left:9px !important;padding-right:9px !important}
+  header.sticky > .max-w-7xl > .flex.items-center.justify-between.h-20 {gap:5px !important}
+  header.sticky .flex.items-center.space-x-4.cursor-pointer {gap:6px !important}
+  header.sticky .flex.items-center.space-x-4.cursor-pointer p {font-size:9px !important;max-width:112px !important}
+  header.sticky #lspdNavTools {gap:5px !important}
+  header.sticky #lspdNavTools #lspdThemeToggle button {width:21px !important;height:21px !important}
+  header.sticky #lspdNavTools #lspdUserChip .user-medal {width:29px !important;min-width:29px !important;height:29px !important}
+  header.sticky .flex.lg\:hidden {width:36px !important;min-width:36px !important;flex-basis:36px !important}
+  header.sticky #mobileMenu {padding-left:9px !important;padding-right:9px !important}
+  main {padding-left:10px !important;padding-right:10px !important}
+  #view-landing > .relative.rounded-3xl {padding:25px 15px !important}
+  #view-landing h1.font-tactical {font-size:clamp(29px,8.7vw,37px) !important}
+  #view-landing > .relative.rounded-3xl .pt-2 button {font-size:12px !important}
+  #view-landing > .grid.grid-cols-1.sm\:grid-cols-2.lg\:grid-cols-4 {grid-template-columns:1fr 1fr !important}
+  #view-dashboard .overflow-x-auto > table {min-width:700px !important}
+  #view-attendance .overflow-x-auto > table {min-width:740px !important}
+  #view-fleet .overflow-x-auto > table {min-width:1080px !important}
+  #view-weapons .overflow-x-auto > table {min-width:820px !important}
+}
+@media screen and (max-width: 360px), screen and (max-device-width: 360px) {
+  header.sticky .flex.items-center.space-x-4.cursor-pointer p {max-width:88px !important;font-size:8px !important}
+  header.sticky #lspdNavTools {gap:4px !important}
+  header.sticky #lspdNavTools #lspdThemeToggle button {width:19px !important;height:19px !important}
+  header.sticky #lspdNavTools #lspdNotificationButton {flex-basis:21px !important;width:21px !important}
+  header.sticky #lspdNavTools #lspdUserChip .user-medal {width:27px !important;min-width:27px !important;height:27px !important}
+  header.sticky .flex.lg\\:hidden {width:33px !important;min-width:33px !important;flex-basis:33px !important}
+  header.sticky #mobileMenuBtn {width:33px !important;min-width:33px !important;height:36px !important}
+}
+</style>
+
 </head>
 <body class="bg-lspd-dark text-slate-100 font-sans min-h-screen flex flex-col bg-tactical-grid selection:bg-lspd-gold selection:text-lspd-dark overflow-x-hidden portal-gated">
 
@@ -6127,10 +6730,8 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
         nav.classList.add("opacity-80");
         nav.title = "Restricted to Discord role 1559517530312278036";
       }
-      const user = document.createElement("div");
-      user.className = "fixed right-4 top-3 z-[60] rounded-full border border-amber-300/25 bg-slate-950/90 px-3 py-2 text-xs text-slate-200 shadow-xl";
-      user.textContent = (session.globalName || session.username || "Authorized Officer") + " · DISCORD AUTHENTICATED";
-      document.body.appendChild(user);
+      // Authenticated identity is shown in the responsive header account control.
+      // Do not add a fixed floating badge that can cover mobile page content.
     } catch (_) {
       window.LSPD_ANNOUNCEMENTS_ALLOWED = false;
       window.LSPD_PHOTO_VIEW_ALLOWED = false;
