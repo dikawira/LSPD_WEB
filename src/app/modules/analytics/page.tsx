@@ -1,1 +1,11 @@
-import{getSession}from"@/lib/auth";import{redirect}from"next/navigation";import{prisma}from"@/lib/prisma";import Link from"next/link";export const dynamic="force-dynamic";export default async function Page(){const s=await getSession();if(!s)redirect("/api/auth/discord");const [u,on,v,w,a]=await Promise.all([prisma.user.count(),prisma.user.count({where:{dutyStatus:"ON_DUTY"}}),prisma.fleetVehicle.count(),prisma.weapon.count(),prisma.attendance.count()]);const cards=[["Total Officers",u],["On Duty",on],["Fleet Vehicles",v],["Weapons",w],["Attendance",a]];return <main className="mx-auto max-w-6xl px-5 py-10"><Link className="quiet-link" href="/">← Command Center</Link><h1 className="my-6 text-4xl font-bold">Analytics</h1><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">{cards.map(([k,n])=><div className="stat-card" key={k}><div><div className="stat-value">{n}</div><div className="stat-label">{k}</div></div></div>)}</div></main>}
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import AnalyticsClient from "./AnalyticsClient";
+
+export const dynamic = "force-dynamic";
+
+export default async function Page() {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  return <AnalyticsClient />;
+}

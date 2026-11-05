@@ -13,7 +13,14 @@ export default function MediaCenterPage({mode,username}:{mode:"media-all"|"media
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
  async function load(){try{const r=await fetch("/api/portal-data?kind=videos",{cache:"no-store"});const j=await r.json();if(r.ok&&Array.isArray(j))setVideos(j)}catch{}}
- useEffect(()=>{load()},[]);
+ useEffect(()=>{
+   void load();
+   const timer=window.setInterval(()=>{if(document.visibilityState==="visible")void load()},15000);
+   const refresh=()=>{if(document.visibilityState==="visible")void load()};
+   window.addEventListener("focus",refresh);
+   document.addEventListener("visibilitychange",refresh);
+   return()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);document.removeEventListener("visibilitychange",refresh)};
+ },[]);
  const filtered=useMemo(()=>videos.filter(v=>category==="All"||v.category===category),[videos,category]);
  async function publish(e:FormEvent){e.preventDefault();setBusy(true);setMessage("");const item={...form,id:`video_${Date.now()}`};try{const r=await fetch("/api/portal-data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"videos",records:[item]})});const j=await r.json();if(!r.ok)throw new Error(j.error||"Unable to publish video");setMessage("Video published successfully.");setForm({title:"",category:"Trailer",url:"",thumbnail:"",duration:""});await load()}catch(err:any){setMessage(err.message||"Unable to publish video.")}finally{setBusy(false)}}
  return <main className="mx-auto min-h-screen max-w-[1480px] px-5 py-9 sm:px-8">

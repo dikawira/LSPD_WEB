@@ -52,11 +52,11 @@ The source portal contains these feature groups, which must be migrated without 
 - Handbook external link
 - User profile/logout
 
-The schema is prepared for the main data groups. The current starter is **not yet a complete feature-parity migration**: the remaining work is to port each screen, validation, search/filter, edit/delete behavior, and old localStorage data into the database.
+The main portal screens and workflows now use the shared PostgreSQL `PortalRecord` store through the portal APIs. See the final shared-data architecture below for synchronized collections, permissions, legacy-table import behavior, and remaining production checks.
 
 ## Migrating existing browser data
 
-Before switching production users, export these localStorage keys from the old portal:
+For a manual backup before switching production users, export these localStorage keys from the old portal. The current code also merges local-only records on authenticated startup when the user is allowed to write that collection:
 - `LSPD_OFFICERS_DATA_V2`
 - `LSPD_CHIEF_ANNOUNCEMENTS_V1`
 - `LSPD_OFFICER_ATTENDANCE_V1`
@@ -74,12 +74,12 @@ Do not overwrite or remove the old static portal until imported records and feat
 - The announcement menu/form is hidden unless the Discord session has `canManageAnnouncements`.
 
 ### Important data note
-This compatibility pass preserves the supplied HTML portal's existing browser-side data behavior (localStorage). It does not yet convert every one of those legacy browser records into Supabase-backed records. Existing Prisma API/module work remains in the project, but the reference portal's legacy actions are not yet wired one-by-one to those APIs. Do not treat this as a verified production data migration.
+The reference HTML portal keeps its original localStorage interface, but its officers, attendance, announcements, fleet, weapons, photos, hidden-photo markers, and legacy media video records are synchronized through the shared PostgreSQL `PortalRecord` table. Browser-local records are merged on authenticated startup when permitted; existing records with matching IDs use the server version. Legacy typed Prisma tables are imported once into `PortalRecord` on the first authenticated API read.
 
 ### Authentication
 - `/login` is the only place with the Discord login button.
 - `DISCORD_ALLOWED_ROLE_IDS` controls who may enter the portal.
-- `DISCORD_ANNOUNCEMENT_ROLE_IDS` controls High Command announcement management.
+- Announcement management is restricted to the exact role ID `1559517530312278036` in `src/lib/auth.ts`.
 - Configure the Discord OAuth redirect URI as `https://YOUR_DOMAIN/api/auth/discord/callback` in the Discord Developer Portal.
 
 
@@ -92,7 +92,7 @@ The reference portal now hydrates these shared collections from PostgreSQL befor
 - Fleet (`LSPD_FLEET_DATA_V1`)
 - Weapons (`LSPD_WEAPON_DATA_V1`)
 
-Writes from the original forms are sent to `/api/portal-data`; records are stored in the `PortalRecord` table and become visible to other authenticated users. The portal refreshes these collections every 10 seconds. Announcement reads/writes require the Discord announcement role. Other portal collections require an authenticated portal session.
+Writes from the original forms are sent to `/api/portal-data`; records are stored in the `PortalRecord` table and become visible to other authenticated users. The portal refreshes these collections every 20 seconds. Announcement reads are available to every authenticated portal user; create/update/delete require the exact Discord High Command role `1559517530312278036`. Photo reads require the gallery viewer or manager role; photo/video upload and delete require manager role `1559517530312278036`. Other core portal collections require an authenticated portal session.
 
 ### Apply the database migration
 Run:
@@ -107,16 +107,50 @@ The `DIRECT_URL` must point to a Supabase connection usable for migrations; `DAT
 ### Important
 - The shared portal database table stores each legacy portal record as JSON so the existing reference UI can keep its original field names and workflows.
 - This avoids silently dropping legacy fields such as officer photos, badge/batch numbers, callsigns, division, attendance action, fleet model/unit, and weapon serial/assignment.
-- The first user opening an empty database will seed the original demo officer roster into the shared table from the portal's existing fallback data. Remove demo records from the portal after verifying the production roster.
-- The client refresh interval is 10 seconds. A change is sent immediately when the original portal saves it.
+- Demo fallback officers are not automatically seeded into a successfully connected empty database. Only records actually present in a user's local browser or the database are shown.
+- The client refresh interval is 20 seconds. A change is queued and sent as soon as the original portal saves it; failed writes remain pending and are retried on the next refresh.
 - Concurrent edits to the exact same record are last-write-wins; separate record changes are merged independently.
-- Any records already stored only in a browser's old localStorage are not automatically uploaded from every device. Export/transfer them or open the old data-bearing browser once while authenticated and use the provided import procedure before relying on the shared DB.
+- When an authenticated browser opens the portal, local-only records are uploaded if that session is allowed to write the collection. For Announcement, only the manager role can migrate old local-only items; viewer accounts still hydrate the shared server copy. For records that exist on multiple devices with different content but the same ID, the server copy wins.
 
 
 ## High Command Announcements access gate
 
 The **Pengumuman** navigation item remains visible to all logged-in personnel. Clicking it opens an access-denied popup unless the authenticated Discord guild member has the exact role ID `1559517530312278036`.
 
-The same role check is enforced server-side on announcement data APIs (read/create/update/delete), not just in the browser. The check uses the Discord role IDs captured during OAuth guild-member verification. Users without the role cannot bypass the restriction by calling the API directly.
+The same role check is enforced server-side on announcement create/update/delete APIs, not just in the browser. Announcement read access is available to every authenticated portal user. The write check uses Discord role IDs captured during OAuth guild-member verification, so users without the role cannot bypass it by calling the API directly.
 
 After changing this code, redeploy the application to Vercel. Users should sign out and sign in again so their session is refreshed with current Discord roles. Ensure the Discord bot/OAuth member lookup still returns the user's current guild roles.
+
+
+## Final shared-data architecture (5 Nov 2026)
+
+`PortalRecord` is the canonical shared store for the legacy portal collections. The main portal mirrors these collections into browser storage for UI compatibility, but successful writes are sent to the server API and stored centrally:
+- `officers` — roster, officer profile fields, divisions, callsigns, certifications
+- `attendance` — officer attendance actions and timestamps
+- `announcements` — High Command notices
+- `fleet` — fleet vehicles and officer assignments
+- `weapons` — weapon inventory and officer assignments
+- `photos` — shared Photo Gallery records (with `photo-hidden` markers)
+- `videos` — legacy Media Center records
+
+The `/api/records` compatibility API now reads and writes the same `PortalRecord` collections; it no longer creates a second copy in the legacy `FleetVehicle`, `Weapon`, `Announcement`, or `Attendance` tables. Analytics and Chain of Command routes also read the shared officer/fleet/weapon/attendance records and refresh while visible. Module pages refresh every 15 seconds. The static portal refreshes its shared collections every 20 seconds, and the Photo Gallery refreshes every 20 seconds without repainting unchanged cards.
+
+Local-only records from a browser are merged into the central store at sign-in/initialization when their IDs are not already present remotely. If a record ID exists both locally and remotely, the server copy wins. This prevents an older browser copy from overwriting a shared record. Concurrent edits to the same record remain last-write-wins; use separate record IDs for separate vehicles, weapons, attendance events, and announcements.
+
+### Roles
+- Portal login is fail-closed and controlled by `DISCORD_ALLOWED_ROLE_IDS`.
+- Photo viewing is granted to role `1559517381422874705` and the upload manager role.
+- Photo/video upload and deletion are granted to role `1559517530312278036`.
+- Announcement create/edit/delete is granted to role `1559517530312278036`; authenticated users may read announcements and the notification popup.
+- Officer roster, attendance, Fleet, and Weapon API operations are available to authenticated portal users. Add additional server-side role gates before production if these operational edits should be limited to a narrower command role.
+
+The photo and announcement role IDs are enforced in server routes in `src/lib/auth.ts` and `src/app/api/portal-data/route.ts`; hiding a button in the browser is not the only security check.
+
+### Post-deployment checks
+1. Set `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, Discord OAuth credentials, guild ID, and `DISCORD_ALLOWED_ROLE_IDS` in Vercel Production and Preview as applicable.
+2. Run the build/deploy with the `PortalRecord` migrations applied (`prisma migrate deploy`). The production build script runs migrations before `next build`.
+3. Sign in, then open `/api/health`. It should return `ok: true`, `database: "connected"`, and `portalRecordsTable: "available"`.
+4. Test one controlled change in each collection from one account and confirm a second logged-in account sees it after refresh/polling. Verify viewer role cannot upload/delete photos/videos and non-High-Command users cannot mutate announcements.
+5. Keep `.env` private and never upload it into the project ZIP or Git repository.
+
+A source-level audit cannot verify live Supabase credentials, live Discord role membership, or Vercel production settings. Those require the post-deployment checks above.

@@ -3681,7 +3681,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
         </form>
 
         <div class="lg:col-span-2 glass-card rounded-2xl p-5 space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h2 class="font-bold text-white text-lg">Daftar Kendaraan</h2><p class="text-xs text-slate-400">Data stored in this device</p></div><input id="fleetSearch" oninput="renderFleetTable()" placeholder="Cari unit / model / plat..." class="sm:max-w-xs px-3 py-2.5 text-xs"></div>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h2 class="font-bold text-white text-lg">Daftar Kendaraan</h2><p class="text-xs text-slate-400">Shared database · synced across users</p></div><input id="fleetSearch" oninput="renderFleetTable()" placeholder="Cari unit / model / plat..." class="sm:max-w-xs px-3 py-2.5 text-xs"></div>
           <div class="overflow-x-auto"><table class="w-full min-w-[1080px] text-left text-xs text-slate-300"><colgroup><col style="width:8%"><col style="width:16%"><col style="width:12%"><col style="width:14%"><col style="width:13%"><col style="width:12%"><col style="width:11%"><col style="width:14%"></colgroup><thead><tr><th class="p-3">Unit</th><th class="p-3">Kendaraan</th><th class="p-3">Kategori</th><th class="p-3">Division</th><th class="p-3">Nama Officer</th><th class="p-3">Call Sign</th><th class="p-3">Status</th><th class="p-3 text-right whitespace-nowrap">Aksi</th></tr></thead><tbody id="fleetTableBody"></tbody></table></div>
           <div id="fleetEmpty" class="hidden text-center py-10 text-sm text-slate-400">No fleet records yet. Add a vehicle using the form.</div>
         </div>
@@ -3715,7 +3715,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
         </form>
 
         <div class="lg:col-span-2 glass-card rounded-2xl p-5 space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h2 class="font-bold text-white text-lg">Daftar Inventaris Weapon</h2><p class="text-xs text-slate-400">Data stored in this device</p></div><input id="weaponSearch" oninput="renderWeaponTable()" placeholder="Search name / serial / officer..." class="sm:max-w-xs px-3 py-2.5 text-xs"></div>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h2 class="font-bold text-white text-lg">Daftar Inventaris Weapon</h2><p class="text-xs text-slate-400">Shared database · synced across users</p></div><input id="weaponSearch" oninput="renderWeaponTable()" placeholder="Search name / serial / officer..." class="sm:max-w-xs px-3 py-2.5 text-xs"></div>
           <div class="overflow-x-auto"><table class="w-full min-w-[780px] text-left text-xs text-slate-300"><colgroup><col style="width:20%"><col style="width:13%"><col style="width:16%"><col style="width:20%"><col style="width:15%"><col style="width:16%"></colgroup><thead><tr><th class="p-3">Nama</th><th class="p-3">Jenis</th><th class="p-3">Serial / ID</th><th class="p-3">Pemegang</th><th class="p-3">Status</th><th class="p-3 text-right whitespace-nowrap">Aksi</th></tr></thead><tbody id="weaponTableBody"></tbody></table></div>
           <div id="weaponEmpty" class="hidden text-center py-10 text-sm text-slate-400">No weapon records yet. Add one using the form.</div>
         </div>
@@ -3957,10 +3957,32 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
   };
   let hydrating = true;
   let polling = false;
+  const pendingWrites = new Map();
+  const writeQueues = new Map();
+  window.LSPD_SYNC_ERRORS = window.LSPD_SYNC_ERRORS || {};
+  window.LSPD_SYNC_STATE = { status: "connecting", lastSyncedAt: null };
+  const setSyncError = (kind, message) => {
+    window.LSPD_SYNC_ERRORS[kind] = message;
+    window.LSPD_SYNC_ERROR = Object.values(window.LSPD_SYNC_ERRORS)[0] || "";
+    window.LSPD_SYNC_STATE.status = "error";
+    window.dispatchEvent(new CustomEvent("lspd:sync-status", { detail: { status: "error", kind, message } }));
+  };
+  const clearSyncError = kind => {
+    delete window.LSPD_SYNC_ERRORS[kind];
+    window.LSPD_SYNC_ERROR = Object.values(window.LSPD_SYNC_ERRORS)[0] || "";
+    window.LSPD_SYNC_STATE.status = Object.keys(window.LSPD_SYNC_ERRORS).length ? "error" : "connected";
+    window.LSPD_SYNC_STATE.lastSyncedAt = new Date().toISOString();
+    window.dispatchEvent(new CustomEvent("lspd:sync-status", { detail: { status: window.LSPD_SYNC_STATE.status, kind, lastSyncedAt: window.LSPD_SYNC_STATE.lastSyncedAt } }));
+  };
   const parse = value => { try { const x=JSON.parse(value||"[]"); return Array.isArray(x)?x:[]; } catch { return []; } };
   async function api(url, options={}) {
     const res = await fetch(url, { credentials:"same-origin", ...options, headers:{"Content-Type":"application/json",...(options.headers||{})} });
-    if (!res.ok) throw new Error((await res.json().catch(()=>({}))).error || `HTTP ${res.status}`);
+    if (!res.ok) {
+      const detail = await res.json().catch(()=>({}));
+      const error = new Error(detail.error || `HTTP ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
     return res.json();
   }
   window.LSPD_SYNC_READY = (async () => {
@@ -3968,19 +3990,113 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
       try {
         const rows = await api(`/api/portal-data?kind=${kind}`);
         const localRows = parse(nativeGet.call(localStorage,key));
-        if (rows.length === 0 && localRows.length > 0) {
-          await api("/api/portal-data",{method:"POST",body:JSON.stringify({kind,records:localRows})});
-          nativeSet.call(localStorage,key,JSON.stringify(localRows));
-        } else {
-          nativeSet.call(localStorage,key,JSON.stringify(rows));
+        const remoteIds = new Set(rows.map(item => String(item.id)));
+        // Reconcile local-only officer profiles against imported Discord User profiles
+        // by their unique badge/name so the first shared sync does not create duplicates.
+        let localOnly = localRows.filter(item => item && item.id && !remoteIds.has(String(item.id)));
+        const serverUpdates = [];
+        if (["officers", "fleet", "weapons"].includes(kind) && localOnly.length && rows.length) {
+          const normalizeOfficerKey = value => String(value ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+          const remaining = [];
+          for (const local of localOnly) {
+            const match = rows.find(remote => {
+              if (kind === "officers") {
+                const localBadge = normalizeOfficerKey(local.badgeNumber || local.batchNumber);
+                const remoteBadge = normalizeOfficerKey(remote.badgeNumber || remote.batchNumber);
+                const localName = normalizeOfficerKey(local.fullName || local.username);
+                const remoteName = normalizeOfficerKey(remote.fullName || remote.username);
+                if (localBadge && remoteBadge) return localBadge === remoteBadge;
+                return !!localName && !!remoteName && localName === remoteName;
+              }
+              if (kind === "fleet") {
+                const localPlate = normalizeOfficerKey(local.plate || local.licensePlate);
+                const remotePlate = normalizeOfficerKey(remote.plate || remote.licensePlate);
+                return !!localPlate && !!remotePlate && localPlate === remotePlate;
+              }
+              const localSerial = normalizeOfficerKey(local.serialNumber || local.serial);
+              const remoteSerial = normalizeOfficerKey(remote.serialNumber || remote.serial);
+              return !!localSerial && !!remoteSerial && localSerial === remoteSerial;
+            });
+            if (!match) { remaining.push(local); continue; }
+            // Existing server values win; local fields only supplement blanks so
+            // legacy profile photos/notes, vehicle metadata, and weapon assignment fields survive.
+            const merged = { ...local, ...match, id: match.id };
+            for (const [field, value] of Object.entries(local)) {
+              if ((merged[field] === undefined || merged[field] === null || merged[field] === "") && value !== undefined && value !== null && value !== "") merged[field] = value;
+            }
+            serverUpdates.push(merged);
+          }
+          localOnly = remaining;
         }
+        const migrationRows = [...serverUpdates, ...localOnly];
+        if (migrationRows.length) {
+          try {
+            await api("/api/portal-data",{method:"POST",body:JSON.stringify({kind,records:migrationRows})});
+          } catch (migrationError) {
+            // Announcement migration is manager-only. Viewers still hydrate the
+            // canonical shared announcements instead of being stuck on stale local data.
+            if (kind === "announcements" && migrationError?.status === 403) {
+              localOnly = [];
+              serverUpdates.length = 0;
+            } else {
+              throw migrationError;
+            }
+          }
+        }
+        const updatedById = new Map(serverUpdates.map(item => [String(item.id), item]));
+        const canonicalRows = rows.map(item => updatedById.get(String(item.id)) || item);
+        const hydratedRows = [...canonicalRows, ...localOnly];
+        hydratedRows.sort((a,b) => {
+          const dateA = new Date(a.updatedAt || a.createdAt || a.submittedAt || 0).getTime() || 0;
+          const dateB = new Date(b.updatedAt || b.createdAt || b.submittedAt || 0).getTime() || 0;
+          return dateB - dateA;
+        });
+        nativeSet.call(localStorage,key,JSON.stringify(hydratedRows));
+        clearSyncError(kind);
       } catch (e) {
         console.error("LSPD database load failed:",kind,e);
-        if (kind !== "announcements") window.LSPD_SYNC_ERROR = "Gagal memuat "+kind+" dari database.";
+        setSyncError(kind, "Gagal memuat "+kind+" dari database. Periksa koneksi Supabase dan migration PortalRecord.");
       }
     }
     hydrating = false;
+    if (!Object.keys(window.LSPD_SYNC_ERRORS).length) {
+      window.LSPD_SYNC_STATE.status = "connected";
+      window.LSPD_SYNC_STATE.lastSyncedAt = new Date().toISOString();
+    }
+    return { ok: !Object.keys(window.LSPD_SYNC_ERRORS).length, errors: { ...window.LSPD_SYNC_ERRORS } };
   })();
+
+  async function flushPendingWrites(kind) {
+    const batch = pendingWrites.get(kind);
+    if (!batch) return true;
+    const upserts = [...batch.upserts.entries()];
+    const deletes = [...batch.deletes];
+    if (upserts.length) {
+      await api("/api/portal-data", { method:"POST", body:JSON.stringify({kind,records:upserts.map(([,record])=>record)}) });
+    }
+    for (const id of deletes) {
+      await api("/api/portal-data", { method:"DELETE", body:JSON.stringify({kind,id}) });
+    }
+    for (const [id,record] of upserts) {
+      if (batch.upserts.get(id) === record) batch.upserts.delete(id);
+    }
+    for (const id of deletes) batch.deletes.delete(id);
+    if (!batch.upserts.size && !batch.deletes.size) pendingWrites.delete(kind);
+    clearSyncError(kind);
+    return !pendingWrites.has(kind);
+  }
+
+  function queuePendingWrites(kind) {
+    const previous = writeQueues.get(kind) || Promise.resolve(true);
+    const next = previous.catch(() => false).then(() => flushPendingWrites(kind));
+    const safe = next.catch(error => {
+      console.error("LSPD database write failed:",kind,error);
+      setSyncError(kind, "Gagal menyimpan perubahan "+kind+" ke database bersama. Perubahan lokal ditahan dan akan dicoba kembali.");
+      return false;
+    });
+    writeQueues.set(kind, safe);
+    return safe;
+  }
 
   Storage.prototype.setItem = function(key,value) {
     const previous = nativeGet.call(this,key);
@@ -3994,10 +4110,20 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
       return !old || JSON.stringify(old)!==JSON.stringify(item);
     });
     const removed = [...beforeIds].filter(id=>!afterIds.has(id));
-    if (changed.length) api("/api/portal-data",{method:"POST",body:JSON.stringify({kind,records:changed})})
-      .catch(e=>{ console.error("LSPD save failed:",kind,e); window.LSPD_SYNC_ERROR="Gagal menyimpan "+kind+" ke database."; });
-    for (const id of removed) api("/api/portal-data",{method:"DELETE",body:JSON.stringify({kind,id})})
-      .catch(e=>{ console.error("LSPD delete failed:",kind,e); window.LSPD_SYNC_ERROR="Gagal menghapus data "+kind+" dari database."; });
+    if (!changed.length && !removed.length) return;
+    let batch = pendingWrites.get(kind);
+    if (!batch) batch = { upserts: new Map(), deletes: new Set() };
+    for (const record of changed) {
+      const id = String(record.id);
+      batch.upserts.set(id, record);
+      batch.deletes.delete(id);
+    }
+    for (const id of removed) {
+      batch.upserts.delete(id);
+      batch.deletes.add(id);
+    }
+    pendingWrites.set(kind, batch);
+    void queuePendingWrites(kind);
   };
 
   window.LSPD_REFRESH_PORTAL = async () => {
@@ -4005,32 +4131,40 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
     polling = true;
     try {
       for (const [key,kind] of Object.entries(keyKinds)) {
-        const remote = await api(`/api/portal-data?kind=${kind}`);
-        const current = parse(nativeGet.call(localStorage,key));
-        if (JSON.stringify(remote)!==JSON.stringify(current)) {
-          hydrating = true;
-          nativeSet.call(localStorage,key,JSON.stringify(remote));
-          hydrating = false;
-          if (kind==="officers") {
-            if (typeof loadOfficersFromStorage==="function") loadOfficersFromStorage();
-            if (typeof updateDashboardStats==="function") updateDashboardStats();
-            if (typeof renderChainOfCommand==="function") renderChainOfCommand();
-            if (typeof renderRosterTable==="function") renderRosterTable();
-            if (typeof renderRecentRegistrations==="function") renderRecentRegistrations();
-            if (typeof populateDropdowns==="function") populateDropdowns();
-            if (typeof populateAttendanceOfficerOptions==="function") populateAttendanceOfficerOptions();
-            if (typeof populateInventoryOfficerOptions==="function") populateInventoryOfficerOptions();
+        try {
+          if (pendingWrites.has(kind)) {
+            const saved = await queuePendingWrites(kind);
+            if (!saved || pendingWrites.has(kind)) continue;
           }
-          if (kind==="attendance" && typeof renderAttendanceTable==="function") {
-            window.dispatchEvent(new CustomEvent("lspd:remote-refresh",{detail:{kind,records:remote}}));
+          const remote = await api(`/api/portal-data?kind=${kind}`);
+          const current = parse(nativeGet.call(localStorage,key));
+          clearSyncError(kind);
+          if (JSON.stringify(remote)!==JSON.stringify(current)) {
+            hydrating = true;
+            nativeSet.call(localStorage,key,JSON.stringify(remote));
+            hydrating = false;
+            if (kind==="officers") {
+              if (typeof loadOfficersFromStorage==="function") loadOfficersFromStorage();
+              if (typeof updateDashboardStats==="function") updateDashboardStats();
+              if (typeof renderChainOfCommand==="function") renderChainOfCommand();
+              if (typeof renderRosterTable==="function") renderRosterTable();
+              if (typeof renderRecentRegistrations==="function") renderRecentRegistrations();
+              if (typeof populateDropdowns==="function") populateDropdowns();
+              if (typeof populateAttendanceOfficerOptions==="function") populateAttendanceOfficerOptions();
+              if (typeof populateInventoryOfficerOptions==="function") populateInventoryOfficerOptions();
+            }
+            if (kind==="attendance" || kind==="fleet" || kind==="weapons" || kind==="announcements") {
+              window.dispatchEvent(new CustomEvent("lspd:remote-refresh",{detail:{kind,records:remote}}));
+            }
           }
-          if (kind==="fleet" && typeof renderFleetTable==="function") window.dispatchEvent(new CustomEvent("lspd:remote-refresh",{detail:{kind,records:remote}}));
-          if (kind==="weapons" && typeof renderWeaponTable==="function") window.dispatchEvent(new CustomEvent("lspd:remote-refresh",{detail:{kind,records:remote}}));
-          if (kind==="announcements" && typeof renderChiefAnnouncements==="function") window.dispatchEvent(new CustomEvent("lspd:remote-refresh",{detail:{kind,records:remote}}));
+        } catch(e) {
+          console.warn("LSPD refresh failed for "+kind+":",e);
+          setSyncError(kind, "Sinkronisasi "+kind+" gagal. Data lokal belum ditimpa.");
         }
       }
-    } catch(e) { console.warn("LSPD refresh:",e); }
-    finally { polling=false; }
+    } finally {
+      polling=false;
+    }
   };
   const schedulePortalRefresh = () => {
     if (document.visibilityState === "hidden") return;
@@ -4247,6 +4381,10 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
           officers = [...INITIAL_OFFICERS];
         }
       } else {
+        if (window.LSPD_SYNC_ERRORS && window.LSPD_SYNC_ERRORS.officers) {
+          officers = [];
+          return;
+        }
         officers = [...INITIAL_OFFICERS];
         saveOfficersToStorage();
       }
@@ -6350,7 +6488,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
   if(handbook)nav.insertBefore(media,handbook);else nav.appendChild(media);
   media.querySelector('.lspd-media-trigger').addEventListener('click',e=>{e.stopPropagation();media.classList.toggle('open')});
   document.addEventListener('click',e=>{if(!media.contains(e.target))media.classList.remove('open')});
-  media.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>{media.classList.remove('open');const a=b.dataset.action;if(a==='upload'){if(hasPhotoUploadPermission())openUpload();else showPhotoPermissionDenied()}else if(a==='categories')openPhotoLibrary('categories');else if(a==='playlists')openPhotoLibrary('albums');else openPhotoLibrary('all')}));
+  media.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>{media.classList.remove('open');media.closest('.lspd-mega-group')?.classList.remove('open');media.closest('.lspd-mega-group')?.querySelector('.lspd-mega-trigger')?.setAttribute('aria-expanded','false');const a=b.dataset.action;if(a==='upload'){if(hasPhotoUploadPermission())openUpload();else showPhotoPermissionDenied()}else if(a==='categories')openPhotoLibrary('categories');else if(a==='playlists')openPhotoLibrary('albums');else openPhotoLibrary('all')}));
 
   // Reorganize the existing desktop navigation into compact mega-dropdown groups.
   // Original tab IDs and switchTab() handlers are retained, so routes and permissions do not change.
@@ -6494,7 +6632,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
   buildMobileMegaMenu();
 
   // Mirror Photo Gallery submenu in the existing responsive menu.
-  const mobile=document.getElementById('mobileMenu');if(mobile&&!mobile.querySelector('.lspd-mobile-media')){const group=document.createElement('div');group.className='lspd-mobile-media';group.innerHTML=`<div class="px-4 py-2 text-xs uppercase tracking-widest text-amber-300">Photo Gallery</div><button class="w-full text-left px-4 py-2 text-slate-200" data-mobile="all">All Photos</button><button class="w-full text-left px-4 py-2 text-slate-200" data-mobile="categories">Photo Categories</button><button class="w-full text-left px-4 py-2 text-slate-200" data-mobile="playlists">Albums</button><button class="w-full text-left px-4 py-2 text-amber-300" data-mobile="upload">Upload Photo</button>`;mobile.appendChild(group);group.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.mobile;if(a==='upload'){if(hasPhotoUploadPermission())openUpload();else showPhotoPermissionDenied()}else if(a==='categories')openPhotoLibrary('categories');else if(a==='playlists')openPhotoLibrary('albums');else openPhotoLibrary('all');toggleMobileMenu()}));}
+  const mobile=document.getElementById('mobileMenu');if(mobile&&!mobile.querySelector('.lspd-mobile-media')){const group=document.createElement('div');group.className='lspd-mobile-media';group.innerHTML=`<div class="px-4 py-2 text-xs uppercase tracking-widest text-amber-300">Photo Gallery</div><button class="w-full text-left px-4 py-2 text-slate-200" data-mobile="all">All Photos</button><button class="w-full text-left px-4 py-2 text-slate-200" data-mobile="categories">Photo Categories</button><button class="w-full text-left px-4 py-2 text-slate-200" data-mobile="playlists">Albums</button><button class="w-full text-left px-4 py-2 text-amber-300" data-mobile="upload">Upload Photo</button>`;const mediaSection=[...mobile.querySelectorAll('.lspd-mobile-mega-group')].find(section=>section.querySelector('.lspd-mobile-mega-trigger')?.textContent?.includes('Media & Communications'));const mediaPanel=mediaSection?.querySelector('.lspd-mobile-mega-panel');if(mediaPanel)mediaPanel.appendChild(group);else mobile.appendChild(group);group.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.mobile;if(a==='upload'){if(hasPhotoUploadPermission())openUpload();else showPhotoPermissionDenied()}else if(a==='categories')openPhotoLibrary('categories');else if(a==='playlists')openPhotoLibrary('albums');else openPhotoLibrary('all');toggleMobileMenu()}));}
   // Split read-only Gallery navigation from the upload-manager action.
   window.syncPhotoGalleryMenuPermissions=()=>{
     const canView=hasPhotoViewPermission();
@@ -6779,7 +6917,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
  function translateVisibleCopy(root){const map={
   'City of Los Santos Police Headquarters':'City of Los Santos Police Headquarters','LAW ENFORCEMENT & PUBLIC SAFETY':'LAW ENFORCEMENT & PUBLIC SAFETY',
   'Total Personel':'Total Personnel','Divisi Kedinasan':'Departments & Divisions','Instruksi & Pengumuman Chief of Police':'Chief of Police Directives & Announcements','MDC Quick Access':'MDC Quick Access','Struktur komando kepolisian':'Official police command structure','Cari badge & data personel':'Search badge numbers and personnel records','Statistik Divisi':'Division Statistics','Analisis headcount & unit':'Personnel and unit analysis','Status Kedinasan':'Duty Status','Pengisian Data Diri Mandiri & Pembaruan Status Duty':'Officer Profile Registration & Duty Status Update','Terbaru':'Latest','Kemarin':'Yesterday','Pengumuman resmi':'Official Announcements','Register / Check In Officer':'Add / Register Officer','Lihat Chain of Command':'View Chain of Command','Absen / Isi Data Diri':'Officer Registration','Divisi':'Division','Personel':'Personnel','Kembali':'Back','Simpan':'Save','Batal':'Cancel','Hapus':'Delete','Edit':'Edit','Cari':'Search','Nama':'Name','Jabatan':'Rank','Status':'Status','Aksi':'Actions','Tanggal':'Date','Waktu':'Time','Catatan':'Notes','Pilih':'Select','Semua':'All','Tambah':'Add','Perbarui':'Update','Detail':'Details','Filter':'Filter','Ekspor CSV':'Export CSV','Tidak ada data':'No records found','Akses Ditolak':'Access Denied','Anda Tidak Memiliki Akses':'Access Denied','Mengerti':'Understood',
-  'Personnel Strength by Division':'Personnel Strength by Division','Latest Attendance & Registration Logs':'Latest Attendance & Registration Logs','Nama Petugas':'Officer Name','Pangkat':'Rank','Tanggal Input':'Entry Date','Silakan lengkapi data diri Anda secara akurat untuk dicatat dalam database terpusat MDC LSPD.':'Please complete your profile accurately to be recorded in the centralized LSPD MDC database.','Nama Lengkap Officer':'Officer Full Name','Masukkan direct image URL (PNG, JPG, atau WEBP). Foto akan tampil di samping nama pada Directory.':'Enter a direct image URL (PNG, JPG, or WEBP). The photo will appear next to the officer name in the Directory.','Nomor Badge / Batch':'Badge / Batch Number','Status Dinas saat ini':'Current Duty Status','Leave of Absence (Izin / Cuti)':'Leave of Absence','Simpan & Update Database':'Save & Update Database','Pencatatan kehadiran dan status kedinasan anggota LSPD.':'Track LSPD officer attendance and duty status.','Total Log Absensi':'Total Attendance Logs','Input Absensi':'Attendance Entry','Pilih officer dan catat status kehadirannya.':'Select an officer and record their attendance status.','Nama Officer / Badge':'Officer Name / Badge','Pilih Officer':'Select Officer','Status Absensi':'Attendance Status','Waktu submit otomatis':'Automatic Timestamp','Tanggal dan jam direkam saat tombol submit ditekan.':'The date and time are recorded when the submit button is clicked.','Submit Absensi':'Submit Attendance','Waktu tercatat otomatis pada saat absensi dikirim.':'The time is recorded automatically when attendance is submitted.','Tanggal Submit':'Submission Date','Belum ada catatan absensi.':'No attendance records yet.','Directory & Roster Anggota LSPD':'LSPD Officer Directory & Roster','Database lengkap seluruh personel aktif, pangkat, dan divisi kepolisian':'Complete database of active personnel, ranks, and police divisions','Tambah Anggota Mandiri':'Add Officer','Cari Nama / Badge':'Search Name / Badge','Semua Divisi':'All Divisions','Semua Pangkat':'All Ranks','Semua Status':'All Statuses','Nama Petugas':'Officer Name','Tidak ada data personel yang cocok dengan kriteria pencarian Anda.':'No personnel match your search criteria.','Bersihkan Filter':'Clear Filters','Pencatatan kendaraan dinas, unit operasional, dan status armada LSPD':'Manage department vehicles, operational units, and fleet status','Tambah Data Kendaraan':'Add Vehicle','Isi informasi kendaraan dinas di bawah ini.':'Enter department vehicle information below.','Nama / Model Kendaraan':'Vehicle Name / Model','Nomor Unit':'Unit Number','Nomor Plat':'License Plate','Pilih kategori':'Select Category','Divisi Penanggung Jawab':'Assigned Division','Belum ditentukan':'Not Assigned','Nama Officer':'Officer Name','Status Kendaraan':'Vehicle Status','Catatan':'Notes','Simpan Fleet Data':'Save Fleet Data','Daftar Kendaraan':'Vehicle List','Data stored in this device':'Data stored in this device','Kendaraan':'Vehicle','Kategori':'Category','Nama Officer':'Officer Name','Call Sign':'Call Sign','Aksi':'Actions','No fleet records yet. Add a vehicle using the form.':'No fleet records yet. Add a vehicle using the form.','Inventaris dan pencatatan perlengkapan senjata dinas untuk kebutuhan administrasi roleplay':'Manage department weapon inventory and equipment records for roleplay administration','Tambah Data Weapon':'Add Weapon','Catat inventaris dan penanggung jawabnya.':'Record inventory and assigned personnel.','Nama Weapons':'Weapon Name','Pilih jenis':'Select Type','Pemegang / Badge Officer':'Assigned Officer / Badge','Status Inventaris':'Inventory Status','Simpan Data Weapon':'Save Weapon Data','Daftar Inventaris Weapon':'Weapon Inventory','No weapon records yet. Add one using the form.':'No weapon records yet. Add one using the form.','Status Keanggotaan':'Membership Status','Tanggal Registrasi':'Registration Date','Tidak ada catatan.':'No records available.','Hapus Rekam Data':'Delete Record','Kelola pengumuman resmi. Announcements yang diterbitkan akan tampil di Home pada bagian Chief of Police Directives & Announcements.':'Manage official announcements. Published announcements will appear on the Home page under Chief of Police Directives & Announcements.','Pembuatan dan penghapusan pengumuman khusus jajaran pimpinan.':'Create and remove announcements for department leadership.','Pilih profil dari roster':'Select a profile from the roster','Pilih profil untuk memeriksa hak akses pengumuman.':'Select a profile to verify announcement access.','Belum terverifikasi':'Not Verified','Judul pengumuman':'Announcement Title','Isi pengumuman':'Announcement Content','Belum ada pengumuman tambahan dari High Command.':'No additional announcements from High Command yet.','Gagal memuat':'Failed to load','Gagal menyimpan':'Failed to save','Gagal menghapus':'Failed to delete','Data Senjata':'Weapon Data','Tambah Anggota':'Add Officer','Divisi':'Division','Kendaraan':'Vehicle','Jenis':'Type','Pemegang':'Assigned To','Keterangan':'Description','Pilih kategori':'Select Category','Pilih jenis':'Select Type','Tersedia':'Available','Dalam Perbaikan':'Under Maintenance','Tidak Aktif':'Out of Service','Aktif':'Active','Izin':'Leave','Sakit':'Sick','Terlambat':'Late','Hadir':'Present','Belum ada data':'No data available','Data tersimpan':'Data saved','Berhasil disimpan':'Saved successfully','Wajib diisi':'Required field'};
+  'Personnel Strength by Division':'Personnel Strength by Division','Latest Attendance & Registration Logs':'Latest Attendance & Registration Logs','Nama Petugas':'Officer Name','Pangkat':'Rank','Tanggal Input':'Entry Date','Silakan lengkapi data diri Anda secara akurat untuk dicatat dalam database terpusat MDC LSPD.':'Please complete your profile accurately to be recorded in the centralized LSPD MDC database.','Nama Lengkap Officer':'Officer Full Name','Masukkan direct image URL (PNG, JPG, atau WEBP). Foto akan tampil di samping nama pada Directory.':'Enter a direct image URL (PNG, JPG, or WEBP). The photo will appear next to the officer name in the Directory.','Nomor Badge / Batch':'Badge / Batch Number','Status Dinas saat ini':'Current Duty Status','Leave of Absence (Izin / Cuti)':'Leave of Absence','Simpan & Update Database':'Save & Update Database','Pencatatan kehadiran dan status kedinasan anggota LSPD.':'Track LSPD officer attendance and duty status.','Total Log Absensi':'Total Attendance Logs','Input Absensi':'Attendance Entry','Pilih officer dan catat status kehadirannya.':'Select an officer and record their attendance status.','Nama Officer / Badge':'Officer Name / Badge','Pilih Officer':'Select Officer','Status Absensi':'Attendance Status','Waktu submit otomatis':'Automatic Timestamp','Tanggal dan jam direkam saat tombol submit ditekan.':'The date and time are recorded when the submit button is clicked.','Submit Absensi':'Submit Attendance','Waktu tercatat otomatis pada saat absensi dikirim.':'The time is recorded automatically when attendance is submitted.','Tanggal Submit':'Submission Date','Belum ada catatan absensi.':'No attendance records yet.','Directory & Roster Anggota LSPD':'LSPD Officer Directory & Roster','Database lengkap seluruh personel aktif, pangkat, dan divisi kepolisian':'Complete database of active personnel, ranks, and police divisions','Tambah Anggota Mandiri':'Add Officer','Cari Nama / Badge':'Search Name / Badge','Semua Divisi':'All Divisions','Semua Pangkat':'All Ranks','Semua Status':'All Statuses','Nama Petugas':'Officer Name','Tidak ada data personel yang cocok dengan kriteria pencarian Anda.':'No personnel match your search criteria.','Bersihkan Filter':'Clear Filters','Pencatatan kendaraan dinas, unit operasional, dan status armada LSPD':'Manage department vehicles, operational units, and fleet status','Tambah Data Kendaraan':'Add Vehicle','Isi informasi kendaraan dinas di bawah ini.':'Enter department vehicle information below.','Nama / Model Kendaraan':'Vehicle Name / Model','Nomor Unit':'Unit Number','Nomor Plat':'License Plate','Pilih kategori':'Select Category','Divisi Penanggung Jawab':'Assigned Division','Belum ditentukan':'Not Assigned','Nama Officer':'Officer Name','Status Kendaraan':'Vehicle Status','Catatan':'Notes','Simpan Fleet Data':'Save Fleet Data','Daftar Kendaraan':'Vehicle List','Shared database · synced across users':'Shared database · synced across users','Kendaraan':'Vehicle','Kategori':'Category','Nama Officer':'Officer Name','Call Sign':'Call Sign','Aksi':'Actions','No fleet records yet. Add a vehicle using the form.':'No fleet records yet. Add a vehicle using the form.','Inventaris dan pencatatan perlengkapan senjata dinas untuk kebutuhan administrasi roleplay':'Manage department weapon inventory and equipment records for roleplay administration','Tambah Data Weapon':'Add Weapon','Catat inventaris dan penanggung jawabnya.':'Record inventory and assigned personnel.','Nama Weapons':'Weapon Name','Pilih jenis':'Select Type','Pemegang / Badge Officer':'Assigned Officer / Badge','Status Inventaris':'Inventory Status','Simpan Data Weapon':'Save Weapon Data','Daftar Inventaris Weapon':'Weapon Inventory','No weapon records yet. Add one using the form.':'No weapon records yet. Add one using the form.','Status Keanggotaan':'Membership Status','Tanggal Registrasi':'Registration Date','Tidak ada catatan.':'No records available.','Hapus Rekam Data':'Delete Record','Kelola pengumuman resmi. Announcements yang diterbitkan akan tampil di Home pada bagian Chief of Police Directives & Announcements.':'Manage official announcements. Published announcements will appear on the Home page under Chief of Police Directives & Announcements.','Pembuatan dan penghapusan pengumuman khusus jajaran pimpinan.':'Create and remove announcements for department leadership.','Pilih profil dari roster':'Select a profile from the roster','Pilih profil untuk memeriksa hak akses pengumuman.':'Select a profile to verify announcement access.','Belum terverifikasi':'Not Verified','Judul pengumuman':'Announcement Title','Isi pengumuman':'Announcement Content','Belum ada pengumuman tambahan dari High Command.':'No additional announcements from High Command yet.','Gagal memuat':'Failed to load','Gagal menyimpan':'Failed to save','Gagal menghapus':'Failed to delete','Data Senjata':'Weapon Data','Tambah Anggota':'Add Officer','Divisi':'Division','Kendaraan':'Vehicle','Jenis':'Type','Pemegang':'Assigned To','Keterangan':'Description','Pilih kategori':'Select Category','Pilih jenis':'Select Type','Tersedia':'Available','Dalam Perbaikan':'Under Maintenance','Tidak Aktif':'Out of Service','Aktif':'Active','Izin':'Leave','Sakit':'Sick','Terlambat':'Late','Hadir':'Present','Belum ada data':'No data available','Data tersimpan':'Data saved','Berhasil disimpan':'Saved successfully','Wajib diisi':'Required field'};
   const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;while(n=walker.nextNode()){
     const raw=n.nodeValue;
     const key=raw.trim();
@@ -6930,6 +7068,9 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
      if (!grid) return false;
 
      const hiddenIds = new Set(hiddenRows.map(item => String(item?.id || '')));
+     const signature = JSON.stringify({ rows, hiddenIds: [...hiddenIds].sort() });
+     if (signature === window.__lspdPhotoSignature) return true;
+     window.__lspdPhotoSignature = signature;
      const canDeletePhotos = window.LSPD_PHOTO_UPLOAD_ALLOWED === true; // API also enforces this permission.
 
      grid.querySelectorAll('[data-featured-id]').forEach(card => {
@@ -7008,6 +7149,32 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
    }
  }
  window.refreshLspdPhotos = loadPhotos;
+
+ // Keep an already-open Photo Gallery current for every logged-in viewer.
+ // loadPhotos compares a data signature first, so unchanged galleries are not repainted.
+ let photoRefreshRunning = false;
+ const refreshPhotoGalleryViews = async () => {
+   if (photoRefreshRunning || document.visibilityState === 'hidden' || window.LSPD_PHOTO_VIEW_ALLOWED !== true) return;
+   photoRefreshRunning = true;
+   const previousSignature = window.__lspdPhotoSignature;
+   const library = document.getElementById('view-photo-library');
+   const libraryOpen = !!library && !library.classList.contains('hidden');
+   const currentMode = window.__lspdPhotoLibraryMode || 'all';
+   const currentCategory = window.__lspdPhotoLibraryCategory || '';
+   try {
+     const loaded = await loadPhotos();
+     if (loaded && libraryOpen && previousSignature !== window.__lspdPhotoSignature) {
+       renderPhotoLibraryPage(currentMode, currentCategory);
+     }
+   } finally {
+     photoRefreshRunning = false;
+   }
+ };
+ window.setInterval(refreshPhotoGalleryViews, 20000);
+ document.addEventListener('visibilitychange', () => {
+   if (document.visibilityState === 'visible') refreshPhotoGalleryViews();
+ });
+ window.addEventListener('focus', refreshPhotoGalleryViews);
 
  function safeMediaUrl(value) {
    try {

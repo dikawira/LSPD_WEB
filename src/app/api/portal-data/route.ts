@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, canManageAnnouncements, canManagePhotos, canViewPhotos } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureLegacyPortalRecordsImported } from "@/lib/legacy-portal-import";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ const allowedKinds = new Set([
   "announcements",
   "fleet",
   "weapons",
+  "videos",
   "photos",
   "photo-hidden"
 ]);
@@ -30,7 +32,7 @@ const isHttpUrl = (value: unknown, optional = false) => {
 function databaseError(error: unknown, action: string) {
   const err = error as { code?: string; message?: string; meta?: { table?: string } };
   const code = String(err?.code || "");
-  console.error(`[LSPD Photo Gallery] ${action} failed`, error);
+  console.error(`[LSPD Portal API] ${action} failed`, error);
 
   if (code === "P2021" || code === "P2022") {
     return response({
@@ -64,6 +66,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await ensureLegacyPortalRecordsImported();
     if (kind === "photos") {
       const [rows, hiddenRows] = await prisma.$transaction([
         prisma.portalRecord.findMany({
@@ -110,7 +113,7 @@ export async function POST(req: NextRequest) {
     if (kind === "announcements" && !canManageAnnouncements(session)) {
       return response({ error: "You don't have permission" }, 403);
     }
-    if ((kind === "photos" || kind === "photo-hidden") && !canManagePhotos(session)) {
+    if ((kind === "photos" || kind === "photo-hidden" || kind === "videos") && !canManagePhotos(session)) {
       return response({ error: "You don't have permission" }, 403);
     }
     if (records.length < 1 || records.length > 2000) {
@@ -120,6 +123,13 @@ export async function POST(req: NextRequest) {
     const valid = records.filter((record: any) => {
       if (!record || typeof record.id !== "string" || !record.id.trim() || record.id.length > 160) {
         return false;
+      }
+      if (kind === "videos") {
+        const videoCategories = new Set(["Trailer", "Recruitment", "Operations", "Training", "Events", "Community"]);
+        return typeof record.title === "string" && record.title.trim().length > 0 && record.title.length <= 120 &&
+          typeof record.category === "string" && videoCategories.has(record.category) &&
+          isHttpUrl(record.url) && isHttpUrl(record.thumbnail, true) &&
+          (record.duration === undefined || (typeof record.duration === "string" && record.duration.length <= 10));
       }
       if (kind !== "photos") return true;
 
@@ -148,7 +158,9 @@ export async function POST(req: NextRequest) {
 
     if (valid.length !== records.length) {
       return response({
-        error: "Data foto tidak valid. Pastikan judul, kategori, dan URL gambar HTTP(S) sudah benar."
+        error: kind === "videos"
+          ? "Data video tidak valid. Periksa judul, kategori, URL, thumbnail, dan durasi."
+          : "Data foto tidak valid. Pastikan judul, kategori, dan URL gambar HTTP(S) sudah benar."
       }, 400);
     }
 
@@ -170,7 +182,7 @@ export async function POST(req: NextRequest) {
 
     return response({ ok: true, saved: valid.length });
   } catch (error) {
-    return databaseError(error, "menyimpan foto");
+    return databaseError(error, "menyimpan data");
   }
 }
 
@@ -189,7 +201,7 @@ export async function DELETE(req: NextRequest) {
     if (kind === "announcements" && !canManageAnnouncements(session)) {
       return response({ error: "You don't have permission" }, 403);
     }
-    if ((kind === "photos" || kind === "photo-hidden") && !canManagePhotos(session)) {
+    if ((kind === "photos" || kind === "photo-hidden" || kind === "videos") && !canManagePhotos(session)) {
       return response({ error: "You don't have permission" }, 403);
     }
 
