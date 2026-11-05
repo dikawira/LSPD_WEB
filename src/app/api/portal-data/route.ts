@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, canManageAnnouncements, canManagePhotos } from "@/lib/auth";
+import { getSession, canManageAnnouncements, canManagePhotos, canViewPhotos } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -58,8 +58,9 @@ export async function GET(req: NextRequest) {
 
   const kind = req.nextUrl.searchParams.get("kind");
   if (!kind || !allowedKinds.has(kind)) return response({ error: "Invalid kind" }, 400);
-  if (kind === "announcements" && !canManageAnnouncements(session)) {
-    return response({ error: "Forbidden" }, 403);
+  // Announcements are readable by every authenticated LSPD portal user.
+  if ((kind === "photos" || kind === "photo-hidden") && !canViewPhotos(session)) {
+    return response({ error: "You don't have permission" }, 403);
   }
 
   try {

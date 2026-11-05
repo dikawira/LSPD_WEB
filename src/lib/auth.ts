@@ -3,8 +3,17 @@ import { cookies } from "next/headers";
 
 const COOKIE = "lspd_session";
 export const ANNOUNCEMENT_ACCESS_ROLE_ID = "1559517530312278036";
+export const PHOTO_VIEW_ROLE_ID = "1559517381422874705";
 export const PHOTO_UPLOAD_ROLE_ID = "1559517530312278036";
 
+/** Browsing is allowed to the gallery viewer role and to photo managers. */
+export function canViewPhotos(session: Pick<Session, "roles"> | null | undefined): boolean {
+  return !!session?.roles?.some(role =>
+    role === PHOTO_VIEW_ROLE_ID || role === PHOTO_UPLOAD_ROLE_ID
+  );
+}
+
+/** Upload, hide, and delete actions are reserved for the dedicated manager role. */
 export function canManagePhotos(session: Pick<Session, "roles"> | null | undefined): boolean {
   return !!session?.roles?.includes(PHOTO_UPLOAD_ROLE_ID);
 }

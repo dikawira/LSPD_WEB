@@ -58,3 +58,44 @@ Pemeriksaan sintaks JavaScript inline dan TypeScript berhasil dilakukan. Build p
 
 ## Pembaruan status rail — posisi referensi
 Versi ini mengatur lebar status rail menjadi 91% dari lebar halaman, tanpa batas lebar maksimum, dengan margin kiri-kanan seimbang. Kolom jam/tanggal dan badge Operational Duty Active ditaruh rapat di ujung kanan. Bagian lain tidak diubah.
+
+
+## Photo Gallery: halaman khusus
+Menu **All Photos**, **Photo Categories**, dan **Albums** sekarang membuka halaman Photo Library tersendiri melalui sistem navigasi portal. Halaman ini bekerja dari Home maupun dari Fleet Data, Weapon Data, dan modul lain.
+- **All Photos**: menampilkan seluruh foto unggulan dan foto yang tersimpan di database, termasuk pencarian serta filter kategori.
+- **Photo Categories**: menampilkan kartu kategori; klik kategori untuk membuka foto di dalamnya.
+- **Albums**: menampilkan koleksi yang dikelompokkan menurut kategori; klik album untuk melihat seluruh foto dalam koleksi.
+- Kartu foto dapat dibuka dalam lightbox; tombol Delete tetap hanya ditampilkan untuk role Photo Gallery manager.
+
+
+## Photo Gallery: role Viewer dan Upload dipisah
+- **Viewer role:** `1559517381422874705` — dapat membuka **All Photos**, **Photo Categories**, dan **Albums**. Menu **Upload Photo** tidak ditampilkan.
+- **Upload/manager role:** `1559517530312278036` — dapat membuka halaman Photo Gallery dan menu **Upload Photo**, termasuk menyimpan, menyembunyikan, dan menghapus foto.
+- Pemegang role Upload juga dapat melihat galeri. Role Viewer saja tidak dapat mengunggah atau menghapus.
+- API GET `photos` dan `photo-hidden` memeriksa viewer role atau upload role; API POST/DELETE tetap memeriksa upload role saja.
+- Pada `.env` lokal dan Vercel, `DISCORD_ALLOWED_ROLE_IDS` harus memuat kedua role, dipisahkan koma:
+  `1559517381422874705,1559517530312278036`
+- Perbarui Environment Variables Vercel untuk Production/Preview yang dipakai, lalu redeploy. File `.env` tidak disertakan di ZIP.
+
+
+## Notification bell — latest announcements
+Klik ikon lonceng di navigation bar untuk membuka popup **Latest Announcements**. Popup mengambil enam pengumuman terbaru dari endpoint `GET /api/portal-data?kind=announcements`, menampilkan kategori, prioritas, judul, isi, penulis, dan waktu terbit. Pembacaan announcement tersedia untuk semua pengguna LSPD yang sudah login; endpoint POST/DELETE tetap dibatasi ke role High Command `1559517530312278036`.
+
+
+## Fleet & Weapon data di Officer Profile
+Detail Officer Profile kini memiliki panel **Assigned Inventory** yang menampilkan Fleet Assignments dan Weapon Assignments.
+- Fleet dicocokkan memakai kolom `Nama Officer` (`officer`), identitas badge, assigned fields jika ada, dan callsign.
+- Weapon dicocokkan memakai kolom `Pemegang / Badge Officer` (`assigned`), serta variasi officer/badge field.
+- Identitas yang didukung: nama officer, nomor badge (dengan atau tanpa `#` / label `BADGE`), dan callsign.
+- Panel menampilkan jumlah aset serta detail kendaraan/senjata, serial/plat, divisi, callsign, status, dan notes jika ada.
+- Panel diperbarui saat data Fleet/Weapon disimpan, dihapus, atau menerima sinkronisasi database.
+- Bila belum ada kecocokan, panel memberi petunjuk agar nilai assignment memakai nama, badge, atau callsign yang terdaftar pada profil.
+
+
+## Roster-linked Fleet & Weapon assignment
+Form Fleet Data dan Weapon Data memakai dropdown officer yang sama dengan Officer Attendance.
+- Pilihan berbentuk `Nama — #Badge (Rank)` dan sumbernya adalah Officer Registration.
+- Saat officer dipilih, Fleet Call Sign dan Division akan diisi dari profil; Division pada Weapon juga otomatis dipilih.
+- Data inventaris menyimpan `officerId` / `assignedOfficerId` beserta nama, badge, rank, sehingga hubungan tidak lagi hanya bergantung pada teks.
+- Satu officer dapat memiliki beberapa kendaraan dan beberapa senjata. Semua record yang terhubung tampil sebagai kartu terpisah di bagian Assigned Inventory, dengan hitungan per kategori dan scroll bila jumlahnya banyak.
+- Data lama tetap dicoba dicocokkan berdasarkan nama, badge, atau identitas yang sudah tersimpan; data baru menggunakan officer ID.

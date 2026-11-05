@@ -114,3 +114,24 @@ body {
 .icon-action{display:grid;place-items:center;width:30px;height:30px;border:1px solid var(--line);border-radius:7px;color:#d6c18c}
 .icon-action.danger{color:#fca5a5}
 .status-chip{padding:4px 7px;border-radius:5px;background:rgba(52,211,153,.1);color:#6ee7b7;font:700 9px "JetBrains Mono",monospace}
+
+
+/* LSPD unified primary-action treatment — match the bright Register as Officer CTA. */
+.gold-button {
+  background: linear-gradient(112deg, #ffe36a 0%, #ffd21f 48%, #f5b800 100%) !important;
+  color: #111827 !important;
+  border: 1px solid rgba(255,231,128,.96) !important;
+  box-shadow: 0 7px 18px rgba(245,184,0,.22), inset 0 1px 0 rgba(255,255,255,.42) !important;
+  font-weight: 800 !important;
+}
+.gold-button:hover {
+  background: linear-gradient(112deg, #fff08a 0%, #ffdc35 48%, #ffc51a 100%) !important;
+  border-color: #fff0a6 !important;
+  box-shadow: 0 9px 24px rgba(245,184,0,.32) !important;
+  filter: brightness(1.02) !important;
+  transform: translateY(-1px);
+}
+.gold-button:focus-visible {
+  outline: 3px solid rgba(255,210,31,.6);
+  outline-offset: 3px;
+}
