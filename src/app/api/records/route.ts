@@ -7,7 +7,12 @@ import { ensureLegacyPortalRecordsImported } from "@/lib/legacy-portal-import";
 export const dynamic = "force-dynamic";
 
 const allowedKinds = new Set(["officers", "attendance", "announcements", "fleet", "weapons"]);
-const out = (body: unknown, status = 200) => NextResponse.json(body, { status });
+const DELETED_KIND = "_deleted";
+const deletionKey = (kind: string, id: string) => `${kind}:${id}`;
+const out = (body: unknown, status = 200) => NextResponse.json(body, {
+  status,
+  headers: { "Cache-Control": "no-store, max-age=0" }
+});
 
 type PortalPayload = Record<string, any> & { id: string };
 
@@ -148,11 +153,29 @@ function buildPayload(kind: string, data: Record<string, any>, session: NonNulla
 }
 
 async function upsertPortalRecord(kind: string, payload: PortalPayload) {
-  return prisma.portalRecord.upsert({
-    where: { kind_id: { kind, id: payload.id } },
-    create: { id: payload.id, kind, payload },
-    update: { payload }
-  });
+  const save = () => prisma.$transaction(async tx => {
+    const tombstone = await tx.portalRecord.findUnique({
+      where: { kind_id: { kind: DELETED_KIND, id: deletionKey(kind, payload.id) } },
+      select: { id: true }
+    });
+    if (tombstone) {
+      const error = new Error("Record ini sudah dihapus dan tidak dapat dipulihkan dari cache lama.");
+      Object.assign(error, { code: "LSPD_RECORD_DELETED" });
+      throw error;
+    }
+    return tx.portalRecord.upsert({
+      where: { kind_id: { kind, id: payload.id } },
+      create: { id: payload.id, kind, payload },
+      update: { payload }
+    });
+  }, { isolationLevel: "Serializable" });
+
+  try {
+    return await save();
+  } catch (error) {
+    if ((error as { code?: string })?.code !== "P2034") throw error;
+    return save();
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -163,8 +186,15 @@ export async function GET(req: NextRequest) {
 
   try {
     await ensureLegacyPortalRecordsImported();
-    const rows = await prisma.portalRecord.findMany({ where: { kind }, orderBy: { updatedAt: "desc" } });
-    return out(rows.map(row => toModuleRecord(kind, row.payload as unknown as PortalPayload)));
+    const [rows, tombstones] = await prisma.$transaction([
+      prisma.portalRecord.findMany({ where: { kind }, orderBy: { updatedAt: "desc" } }),
+      prisma.portalRecord.findMany({
+        where: { kind: DELETED_KIND, id: { startsWith: `${kind}:` } },
+        select: { id: true }
+      })
+    ]);
+    const deletedIds = new Set(tombstones.map(row => row.id.slice(kind.length + 1)));
+    return out(rows.filter(row => !deletedIds.has(row.id)).map(row => toModuleRecord(kind, row.payload as unknown as PortalPayload)));
   } catch (error) {
     console.error("[LSPD records] read failed", error);
     return out({ error: "Database query failed. Check DATABASE_URL and the PortalRecord migration." }, 503);
@@ -219,6 +249,9 @@ export async function POST(req: NextRequest) {
     const saved = await upsertPortalRecord(kind, payload);
     return out(toModuleRecord(kind, saved.payload as unknown as PortalPayload), 201);
   } catch (error) {
+    if ((error as { code?: string })?.code === "LSPD_RECORD_DELETED") {
+      return out({ error: "Data ini sudah dihapus. Gunakan ID baru untuk membuat record baru." }, 410);
+    }
     console.error("[LSPD records] create failed", error);
     return out({ error: "Gagal menyimpan data ke database bersama." }, 503);
   }
@@ -241,6 +274,9 @@ export async function PATCH(req: NextRequest) {
     const saved = await upsertPortalRecord(kind, merged);
     return out(toModuleRecord(kind, saved.payload as unknown as PortalPayload));
   } catch (error) {
+    if ((error as { code?: string })?.code === "LSPD_RECORD_DELETED") {
+      return out({ error: "Data ini sudah dihapus dan tidak dapat diperbarui dari salinan lama." }, 410);
+    }
     console.error("[LSPD records] update failed", error);
     return out({ error: "Gagal memperbarui data di database bersama." }, 503);
   }
@@ -255,8 +291,25 @@ export async function DELETE(req: NextRequest) {
     const id = String(body.id || "");
     if (!allowedKinds.has(kind) || !id) return out({ error: "Invalid payload" }, 400);
     if (kind === "announcements" && !canManageAnnouncements(session)) return out({ error: "You don't have permission" }, 403);
-    const removed = await prisma.portalRecord.deleteMany({ where: { kind, id } });
-    return out({ ok: true, deletedRecords: removed.count });
+    const deleteRecord = () => prisma.$transaction(async tx => {
+      const removed = await tx.portalRecord.deleteMany({ where: { kind, id } });
+      await tx.portalRecord.upsert({
+        where: { kind_id: { kind: DELETED_KIND, id: deletionKey(kind, id) } },
+        create: {
+          id: deletionKey(kind, id), kind: DELETED_KIND,
+          payload: { recordKind: kind, recordId: id, deletedAt: new Date().toISOString() }
+        },
+        update: { payload: { recordKind: kind, recordId: id, deletedAt: new Date().toISOString() } }
+      });
+      return removed.count;
+    }, { isolationLevel: "Serializable" });
+    let deletedRecords: number;
+    try { deletedRecords = await deleteRecord(); }
+    catch (error) {
+      if ((error as { code?: string })?.code !== "P2034") throw error;
+      deletedRecords = await deleteRecord();
+    }
+    return out({ ok: true, deletedRecords, permanentlyDeleted: true });
   } catch (error) {
     console.error("[LSPD records] delete failed", error);
     return out({ error: "Gagal menghapus data dari database bersama." }, 503);

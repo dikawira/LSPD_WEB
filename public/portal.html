@@ -3455,6 +3455,74 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
 }
 </style>
 
+
+<style id="lspd-mobile-header-action-group-only">
+/* The three mobile controls share a single 24px-spaced flex row.
+   This rule is intentionally limited to the breakpoint where the hamburger navigation is used. */
+@media screen and (max-width:1180px), screen and (max-device-width:1180px){
+  header.sticky #lspdNavTools{
+    display:flex!important;
+    flex:0 0 auto!important;
+    width:auto!important;
+    min-width:0!important;
+    max-width:none!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    gap:8px!important;
+    margin-left:auto!important;
+    margin-right:0!important;
+  }
+  header.sticky #lspdMobileActionGroup{
+    display:flex!important;
+    flex:0 0 auto!important;
+    flex-direction:row!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    gap:1.5rem!important;
+    width:auto!important;
+    min-width:0!important;
+    margin:0!important;
+    padding:0!important;
+    white-space:nowrap!important;
+  }
+  header.sticky #lspdMobileActionGroup>.flex.lg\:hidden{
+    display:flex!important;
+    flex:0 0 40px!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:40px!important;
+    min-width:40px!important;
+    height:40px!important;
+    margin:0!important;
+    order:0!important;
+  }
+  header.sticky #lspdMobileActionGroup>#lspdThemeToggle{
+    display:flex!important;
+    flex:0 0 auto!important;
+    align-items:center!important;
+    justify-content:center!important;
+    margin:0!important;
+    order:1!important;
+  }
+  header.sticky #lspdMobileActionGroup>#lspdAccountMenu{
+    display:flex!important;
+    flex:0 0 auto!important;
+    align-items:center!important;
+    justify-content:center!important;
+    margin:0!important;
+    order:2!important;
+  }
+  header.sticky #lspdMobileActionGroup #lspdUserChip{
+    display:flex!important;
+    flex:0 0 auto!important;
+    align-items:center!important;
+    justify-content:center!important;
+    margin:0!important;
+    padding:0!important;
+  }
+}
+</style>
+
 </head>
 <body class="bg-lspd-dark text-slate-100 font-sans min-h-screen flex flex-col bg-tactical-grid selection:bg-lspd-gold selection:text-lspd-dark overflow-x-hidden portal-gated">
 
@@ -4579,7 +4647,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
   };
   const parse = value => { try { const x=JSON.parse(value||"[]"); return Array.isArray(x)?x:[]; } catch { return []; } };
   async function api(url, options={}) {
-    const res = await fetch(url, { credentials:"same-origin", ...options, headers:{"Content-Type":"application/json",...(options.headers||{})} });
+    const res = await fetch(url, { cache:"no-store", credentials:"same-origin", ...options, headers:{"Content-Type":"application/json",...(options.headers||{})} });
     if (!res.ok) {
       const detail = await res.json().catch(()=>({}));
       const error = new Error(detail.error || `HTTP ${res.status}`);
@@ -4591,8 +4659,15 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
   window.LSPD_SYNC_READY = (async () => {
     for (const [key,kind] of Object.entries(keyKinds)) {
       try {
-        const rows = await api(`/api/portal-data?kind=${kind}`);
-        const localRows = parse(nativeGet.call(localStorage,key));
+        const snapshot = await api(`/api/portal-data?kind=${kind}&withDeleted=1`);
+        const rows = Array.isArray(snapshot)
+          ? snapshot
+          : (Array.isArray(snapshot.records) ? snapshot.records : []);
+        const deletedIds = new Set(Array.isArray(snapshot.deletedIds) ? snapshot.deletedIds.map(String) : []);
+        // A stale browser cache is never considered a new record when its ID
+        // has a deletion marker on the shared database.
+        const localRows = parse(nativeGet.call(localStorage,key))
+          .filter(item => item && !deletedIds.has(String(item.id)));
         const remoteIds = new Set(rows.map(item => String(item.id)));
         // Reconcile local-only officer profiles against imported Discord User profiles
         // by their unique badge/name so the first shared sync does not create duplicates.
@@ -4634,7 +4709,16 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
         const migrationRows = [...serverUpdates, ...localOnly];
         if (migrationRows.length) {
           try {
-            await api("/api/portal-data",{method:"POST",body:JSON.stringify({kind,records:migrationRows})});
+            const migrationResult = await api("/api/portal-data",{method:"POST",body:JSON.stringify({kind,records:migrationRows})});
+            const ignoredDeletedIds = new Set(Array.isArray(migrationResult.ignoredDeletedIds)
+              ? migrationResult.ignoredDeletedIds.map(String)
+              : []);
+            if (ignoredDeletedIds.size) {
+              localOnly = localOnly.filter(item => !ignoredDeletedIds.has(String(item.id)));
+              for (let index = serverUpdates.length - 1; index >= 0; index--) {
+                if (ignoredDeletedIds.has(String(serverUpdates[index].id))) serverUpdates.splice(index, 1);
+              }
+            }
           } catch (migrationError) {
             // Announcement migration is manager-only. Viewers still hydrate the
             // canonical shared announcements instead of being stuck on stale local data.
@@ -4700,6 +4784,15 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
     writeQueues.set(kind, safe);
     return safe;
   }
+
+  // Destructive actions can await this before showing a success message.
+  window.LSPD_SYNC_WAIT_FOR = async kind => {
+    const saved = await queuePendingWrites(kind);
+    if (!saved || pendingWrites.has(kind)) {
+      throw new Error("Perubahan belum dikonfirmasi oleh database bersama.");
+    }
+    return true;
+  };
 
   Storage.prototype.setItem = function(key,value) {
     const previous = nativeGet.call(this,key);
@@ -6464,14 +6557,26 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
       if (cancel) cancel.classList.add("hidden");
     }
 
-    function deleteFleetRecord(id) {
-      const record = fleetRecords.find(item => item.id === id);
-      if (!record || !confirm(`Hapus kendaraan ${record.model} (${record.unit})?`)) return;
-      fleetRecords = fleetRecords.filter(item => item.id !== id);
+    async function deleteFleetRecord(id) {
+      const record = fleetRecords.find(item => String(item.id) === String(id));
+      if (!record || !confirm(`Hapus kendaraan ${record.model || record.name} (${record.unit || record.plate || "-"})?`)) return;
+      const previousRecords = fleetRecords;
+      fleetRecords = fleetRecords.filter(item => String(item.id) !== String(id));
       localStorage.setItem("LSPD_FLEET_DATA_V1", JSON.stringify(fleetRecords));
       renderFleetTable();
       refreshOpenOfficerInventory();
-      showToast("Data kendaraan berhasil dihapus.", "info");
+      showToast("Menghapus kendaraan dari database bersama...", "info");
+      try {
+        await window.LSPD_SYNC_WAIT_FOR("fleet");
+        showToast("Kendaraan berhasil dihapus permanen dari database bersama.", "success");
+      } catch (error) {
+        console.error("Fleet delete was not confirmed:", error);
+        fleetRecords = previousRecords;
+        localStorage.setItem("LSPD_FLEET_DATA_V1", JSON.stringify(fleetRecords));
+        renderFleetTable();
+        refreshOpenOfficerInventory();
+        showToast("Penghapusan belum tersimpan. Data dipulihkan; periksa koneksi database lalu coba lagi.", "error");
+      }
     }
 
     function handleWeaponSubmit(event) {
@@ -6610,14 +6715,26 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
       if (cancel) cancel.classList.add("hidden");
     }
 
-    function deleteWeaponRecord(id) {
-      const record = weaponRecords.find(item => item.id === id);
+    async function deleteWeaponRecord(id) {
+      const record = weaponRecords.find(item => String(item.id) === String(id));
       if (!record || !confirm(`Hapus data weapon ${record.name}?`)) return;
-      weaponRecords = weaponRecords.filter(item => item.id !== id);
+      const previousRecords = weaponRecords;
+      weaponRecords = weaponRecords.filter(item => String(item.id) !== String(id));
       localStorage.setItem("LSPD_WEAPON_DATA_V1", JSON.stringify(weaponRecords));
       renderWeaponTable();
       refreshOpenOfficerInventory();
-      showToast("Data weapon berhasil dihapus.", "info");
+      showToast("Menghapus weapon dari database bersama...", "info");
+      try {
+        await window.LSPD_SYNC_WAIT_FOR("weapons");
+        showToast("Weapon berhasil dihapus permanen dari database bersama.", "success");
+      } catch (error) {
+        console.error("Weapon delete was not confirmed:", error);
+        weaponRecords = previousRecords;
+        localStorage.setItem("LSPD_WEAPON_DATA_V1", JSON.stringify(weaponRecords));
+        renderWeaponTable();
+        refreshOpenOfficerInventory();
+        showToast("Penghapusan belum tersimpan. Data dipulihkan; periksa koneksi database lalu coba lagi.", "error");
+      }
     }
 
     function inventoryStatusBadge(status) {
@@ -6858,11 +6975,13 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
   // Move theme and authenticated profile controls into the single top navigation row.
   const tools=document.createElement('div');tools.id='lspdNavTools';
   const theme=utility?.querySelector('#lspdThemeToggle'),user=utility?.querySelector('#lspdUserChip');
+  let notificationWrap=null;
+  let accountWrap=null;
   if(theme)tools.appendChild(theme);
   if(user){
     const bell=user.querySelector(':scope > i:first-child');
     if(bell){
-      const notificationWrap=document.createElement('div');
+      notificationWrap=document.createElement('div');
       notificationWrap.id='lspdNotificationWrap';
       notificationWrap.className='lspd-notification-wrap';
 
@@ -6998,7 +7117,7 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
         if(event.key==='Escape') closeNotifications();
       });
     }
-    const accountWrap=document.createElement('div');
+    accountWrap=document.createElement('div');
     accountWrap.id='lspdAccountMenu';
     accountWrap.className='lspd-account-menu';
 
@@ -7080,6 +7199,66 @@ body.ui-light #lspdMegaMedia #lspdMediaDropdown button{
     });
   }
   nav.after(tools);
+
+  // On mobile/tablet only, keep hamburger + theme + Discord avatar in one flex group.
+  // Desktop keeps the original DOM arrangement and spacing exactly as before.
+  const mobileMenuButtonWrap=document.getElementById('mobileMenuBtn')?.parentElement||null;
+  const mobileMenuOriginalParent=mobileMenuButtonWrap?.parentElement||null;
+  const mobileMenuOriginalNextSibling=mobileMenuButtonWrap?.nextSibling||null;
+  const mobileHeaderBreakpoint=window.matchMedia('(max-width: 1180px)');
+  let mobileActionGroup=null;
+
+  const syncMobileHeaderActionGroup=()=>{
+    if(mobileHeaderBreakpoint.matches){
+      if(!mobileActionGroup){
+        mobileActionGroup=document.createElement('div');
+        mobileActionGroup.id='lspdMobileActionGroup';
+        mobileActionGroup.setAttribute('role','group');
+        mobileActionGroup.setAttribute('aria-label','Mobile header actions');
+      }
+      if(mobileMenuButtonWrap&&mobileMenuButtonWrap.parentElement!==mobileActionGroup){
+        mobileActionGroup.appendChild(mobileMenuButtonWrap);
+      }
+      if(theme&&theme.parentElement!==mobileActionGroup){
+        mobileActionGroup.appendChild(theme);
+      }
+      if(accountWrap&&accountWrap.parentElement!==mobileActionGroup){
+        mobileActionGroup.appendChild(accountWrap);
+      }
+      if(mobileActionGroup.parentElement!==tools){
+        tools.appendChild(mobileActionGroup);
+      }
+      return;
+    }
+
+    // Restore the exact desktop DOM placement and original control order.
+    if(mobileActionGroup){
+      if(mobileMenuButtonWrap&&mobileMenuOriginalParent){
+        const reference=mobileMenuOriginalNextSibling?.parentNode===mobileMenuOriginalParent
+          ? mobileMenuOriginalNextSibling
+          : null;
+        mobileMenuOriginalParent.insertBefore(mobileMenuButtonWrap,reference);
+      }
+      if(theme){
+        tools.insertBefore(theme,notificationWrap?.parentNode===tools?notificationWrap:null);
+      }
+      if(notificationWrap&&notificationWrap.parentNode!==tools){
+        tools.appendChild(notificationWrap);
+      }
+      if(accountWrap&&accountWrap.parentNode!==tools){
+        tools.appendChild(accountWrap);
+      }
+      mobileActionGroup.remove();
+    }
+  };
+
+  syncMobileHeaderActionGroup();
+  if(typeof mobileHeaderBreakpoint.addEventListener==='function'){
+    mobileHeaderBreakpoint.addEventListener('change',syncMobileHeaderActionGroup);
+  }else if(typeof mobileHeaderBreakpoint.addListener==='function'){
+    mobileHeaderBreakpoint.addListener(syncMobileHeaderActionGroup);
+  }
+
   // Convert all visible navigation labels to English while retaining original tab IDs/actions.
   const labelMap={'Chain of Command':'Chain of Command','Registrasi Officer':'Officer Registration','Absensi Officer':'Officer Attendance','Direktori':'Directory','Pengumuman':'Announcements','LSPD Handbook':'Handbook'};
   nav.querySelectorAll('button,a').forEach(el=>{const span=el.querySelector('span');if(span&&labelMap[span.textContent.trim()])span.textContent=labelMap[span.textContent.trim()];});

@@ -16,7 +16,23 @@ const allowedKinds = new Set([
   "photo-hidden"
 ]);
 
-const response = (body: unknown, status = 200) => NextResponse.json(body, { status });
+const DELETED_KIND = "_deleted";
+const deletionKey = (kind: string, id: string) => `${kind}:${id}`;
+const response = (body: unknown, status = 200) => NextResponse.json(body, {
+  status,
+  headers: { "Cache-Control": "no-store, max-age=0" }
+});
+
+async function runSerializable<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    // Retry once when a save races with a delete. PostgreSQL's serializable
+    // transaction then re-reads the committed deletion marker.
+    if ((error as { code?: string })?.code !== "P2034") throw error;
+    return work();
+  }
+}
 
 const isHttpUrl = (value: unknown, optional = false) => {
   if (optional && (value === undefined || value === null || value === "")) return true;
@@ -67,32 +83,42 @@ export async function GET(req: NextRequest) {
 
   try {
     await ensureLegacyPortalRecordsImported();
+
+    // Durable deletion markers stop stale localStorage copies from being
+    // treated as new records during a later browser's first-load migration.
+    const deletedRows = await prisma.portalRecord.findMany({
+      where: { kind: DELETED_KIND, id: { startsWith: `${kind}:` } },
+      select: { id: true }
+    });
+    const deletedIds = new Set(deletedRows.map(row => row.id.slice(kind.length + 1)));
+
+    let records: unknown[];
     if (kind === "photos") {
       const [rows, hiddenRows] = await prisma.$transaction([
         prisma.portalRecord.findMany({
           where: { kind: "photos" },
           orderBy: { updatedAt: "desc" }
         }),
-        prisma.portalRecord.findMany({
-          where: { kind: "photo-hidden" }
-        })
+        prisma.portalRecord.findMany({ where: { kind: "photo-hidden" } })
       ]);
       const hiddenIds = new Set(
         hiddenRows.map(row => String((row.payload as { id?: unknown } | null)?.id ?? ""))
       );
-      return response(rows.filter(row => !hiddenIds.has(row.id)).map(row => row.payload));
+      records = rows
+        .filter(row => !hiddenIds.has(row.id) && !deletedIds.has(row.id))
+        .map(row => row.payload);
+    } else {
+      const rows = await prisma.portalRecord.findMany({
+        where: { kind },
+        orderBy: { updatedAt: "desc" }
+      });
+      records = rows.filter(row => !deletedIds.has(row.id)).map(row => row.payload);
     }
 
-    if (kind === "photo-hidden") {
-      const hiddenRows = await prisma.portalRecord.findMany({ where: { kind: "photo-hidden" } });
-      return response(hiddenRows.map(row => row.payload));
+    if (req.nextUrl.searchParams.get("withDeleted") === "1") {
+      return response({ records, deletedIds: [...deletedIds] });
     }
-
-    const rows = await prisma.portalRecord.findMany({
-      where: { kind },
-      orderBy: { updatedAt: "desc" }
-    });
-    return response(rows.map(row => row.payload));
+    return response(records);
   } catch (error) {
     return databaseError(error, "membaca data");
   }
@@ -164,23 +190,34 @@ export async function POST(req: NextRequest) {
       }, 400);
     }
 
-    await prisma.$transaction(async tx => {
-      for (const item of valid) {
+    const saveRecords = () => prisma.$transaction(async tx => {
+      const markers = await tx.portalRecord.findMany({
+        where: {
+          kind: DELETED_KIND,
+          id: { in: valid.map(item => deletionKey(kind, item.id)) }
+        },
+        select: { id: true }
+      });
+      const blockedIds = new Set(markers.map(marker => marker.id.slice(kind.length + 1)));
+      const writable = valid.filter(item => !blockedIds.has(item.id));
+
+      for (const item of writable) {
         await tx.portalRecord.upsert({
           where: { kind_id: { kind, id: item.id } },
           create: { id: item.id, kind, payload: item },
           update: { payload: item }
         });
-
         if (kind === "photos") {
           await tx.portalRecord.deleteMany({
             where: { kind: "photo-hidden", id: `photo-hidden:${item.id}` }
           });
         }
       }
-    });
+      return { saved: writable.length, ignoredDeletedIds: [...blockedIds] };
+    }, { isolationLevel: "Serializable" });
 
-    return response({ ok: true, saved: valid.length });
+    const result = await runSerializable(saveRecords);
+    return response({ ok: true, ...result });
   } catch (error) {
     return databaseError(error, "menyimpan data");
   }
@@ -205,26 +242,40 @@ export async function DELETE(req: NextRequest) {
       return response({ error: "You don't have permission" }, 403);
     }
 
-    if (kind === "photos") {
-      const deletedRecords = await prisma.$transaction(async tx => {
-        const removed = await tx.portalRecord.deleteMany({ where: { kind: "photos", id } });
-        await tx.portalRecord.upsert({
-          where: { kind_id: { kind: "photo-hidden", id: `photo-hidden:${id}` } },
-          create: {
-            id: `photo-hidden:${id}`,
-            kind: "photo-hidden",
-            payload: { id }
-          },
-          update: { payload: { id } }
-        });
-        return removed.count;
+    const deleteRecord = () => prisma.$transaction(async tx => {
+      const removed = await tx.portalRecord.deleteMany({ where: { kind, id } });
+
+      // A permanent tombstone survives across all clients and blocks old
+      // browser caches from restoring the same record ID after deletion.
+      await tx.portalRecord.upsert({
+        where: { kind_id: { kind: DELETED_KIND, id: deletionKey(kind, id) } },
+        create: {
+          id: deletionKey(kind, id),
+          kind: DELETED_KIND,
+          payload: { recordKind: kind, recordId: id, deletedAt: new Date().toISOString() }
+        },
+        update: {
+          payload: { recordKind: kind, recordId: id, deletedAt: new Date().toISOString() }
+        }
       });
 
-      return response({ ok: true, deletedRecords, hiddenGlobally: true });
-    }
+      if (kind === "photos") {
+        await tx.portalRecord.upsert({
+          where: { kind_id: { kind: "photo-hidden", id: `photo-hidden:${id}` } },
+          create: { id: `photo-hidden:${id}`, kind: "photo-hidden", payload: { id } },
+          update: { payload: { id } }
+        });
+      }
+      return removed.count;
+    }, { isolationLevel: "Serializable" });
 
-    const removed = await prisma.portalRecord.deleteMany({ where: { kind, id } });
-    return response({ ok: true, deletedRecords: removed.count });
+    const deletedRecords = await runSerializable(deleteRecord);
+    return response({
+      ok: true,
+      deletedRecords,
+      permanentlyDeleted: true,
+      ...(kind === "photos" ? { hiddenGlobally: true } : {})
+    });
   } catch (error) {
     return databaseError(error, "menghapus data");
   }

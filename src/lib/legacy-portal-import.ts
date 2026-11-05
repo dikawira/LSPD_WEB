@@ -153,10 +153,19 @@ export async function ensureLegacyPortalRecordsImported() {
     });
   }
 
+  // The one-time legacy bridge must not re-introduce records that were
+  // already deleted from the shared portal before this import completed.
+  const deletionMarkers = await prisma.portalRecord.findMany({
+    where: { kind: "_deleted" },
+    select: { id: true }
+  });
+  const deletedKeys = new Set(deletionMarkers.map(marker => marker.id));
+  const importableRows = rows.filter(row => !deletedKeys.has(`${row.kind}:${row.id}`));
+
   await prisma.$transaction(async tx => {
-    if (rows.length) {
+    if (importableRows.length) {
       await tx.portalRecord.createMany({
-        data: rows.map(row => ({ ...row, payload: row.payload as Prisma.InputJsonValue })),
+        data: importableRows.map(row => ({ ...row, payload: row.payload as Prisma.InputJsonValue })),
         skipDuplicates: true
       });
     }
@@ -165,9 +174,9 @@ export async function ensureLegacyPortalRecordsImported() {
       create: {
         id: IMPORT_ID,
         kind: IMPORT_KIND,
-        payload: { imported: rows.length, completedAt: new Date().toISOString() }
+        payload: { imported: importableRows.length, skippedDeleted: rows.length - importableRows.length, completedAt: new Date().toISOString() }
       },
-      update: { payload: { imported: rows.length, completedAt: new Date().toISOString() } }
+      update: { payload: { imported: importableRows.length, skippedDeleted: rows.length - importableRows.length, completedAt: new Date().toISOString() } }
     });
   });
 }

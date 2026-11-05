@@ -108,3 +108,21 @@ Form Fleet Data dan Weapon Data memakai dropdown officer yang sama dengan Office
 - Status pills and action controls are kept on one line.
 - Fleet, Weapon, Attendance and Registration form sub-grids stack into one column on phones.
 - Landing hero actions stack vertically and the photo gallery cards become a single-column list on compact screens.
+
+## Mobile header spacing refinement (5 Nov 2026)
+- Pada breakpoint `max-width: 1180px` (rentang ketika hamburger navigation digunakan), tombol hamburger, toggle Light/Dark, dan account/avatar Discord dipindahkan ke satu `#lspdMobileActionGroup` dengan `display:flex` dan `gap:1.5rem`.
+- Notification bell tetap di luar grup tersebut.
+- Ketika viewport kembali ke desktop (`min-width:1181px`), JavaScript memulihkan wrapper hamburger ke parent/original sibling semula dan mengembalikan urutan kontrol desktop: theme → notification → account.
+- Pada load desktop, wrapper mobile tidak dibuat sama sekali sehingga header desktop dan styling desktop yang sudah ada tidak disentuh.
+
+## Permanent deletion / anti-rollback for Fleet and Weapon
+Perbaikan terbaru menutup jalur rollback yang berasal dari migrasi `localStorage` saat portal pertama kali dibuka. Record yang tidak ditemukan di database sebelumnya dianggap sebagai data lokal baru, lalu dikirim kembali ke server. Sekarang:
+- API membuat `PortalRecord` marker dengan `kind = _deleted` dan ID `<kind>:<recordId>` di transaksi PostgreSQL serializable ketika record dihapus.
+- Seluruh GET koleksi menyaring ID yang memiliki marker penghapusan.
+- POST sinkronisasi menolak ID bertanda hapus dan mengembalikan `ignoredDeletedIds`.
+- Loader awal meminta snapshot `withDeleted=1`, membuang cache lokal untuk ID yang sudah dihapus, baru kemudian memigrasikan data lokal yang benar-benar baru.
+- Jalur API kompatibilitas `/api/records` menerapkan aturan tombstone yang sama.
+- Importer legacy satu-kali mengabaikan record lama yang sudah memiliki tombstone.
+- Tombol Delete Fleet/Weapon menunggu konfirmasi database; kalau konfirmasi gagal, UI mengembalikan baris dan menampilkan pesan error.
+
+Tombstone disimpan di tabel `PortalRecord` yang sudah ada, jadi perbaikan ini tidak memerlukan schema migration baru. Record yang telanjur rollback sebelum versi anti-rollback dipasang tidak dapat diketahui secara historis; hapus record tersebut sekali lagi setelah deploy agar tombstone dibuat.
