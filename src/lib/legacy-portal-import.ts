@@ -162,7 +162,7 @@ export async function ensureLegacyPortalRecordsImported() {
   const deletedKeys = new Set(deletionMarkers.map(marker => marker.id));
   const importableRows = rows.filter(row => !deletedKeys.has(`${row.kind}:${row.id}`));
 
-  await prisma.$transaction(async tx => {
+  const importTransaction = () => prisma.$transaction(async tx => {
     if (importableRows.length) {
       await tx.portalRecord.createMany({
         data: importableRows.map(row => ({ ...row, payload: row.payload as Prisma.InputJsonValue })),
@@ -178,5 +178,15 @@ export async function ensureLegacyPortalRecordsImported() {
       },
       update: { payload: { imported: importableRows.length, skippedDeleted: rows.length - importableRows.length, completedAt: new Date().toISOString() } }
     });
-  });
+  }, { maxWait: 10_000, timeout: 60_000 });
+
+  try {
+    await importTransaction();
+  } catch (error) {
+    // The legacy bridge is idempotent (createMany skips duplicates; the marker
+    // is an upsert), so a closed transaction can safely be retried from scratch.
+    const code = (error as { code?: string })?.code;
+    if (code !== "P2028" && code !== "P2034") throw error;
+    await importTransaction();
+  }
 }

@@ -43,3 +43,12 @@ Use a publicly accessible direct image URL. A normal webpage URL, private Discor
 - API route passed TypeScript syntax transpilation.
 - ZIP integrity was verified.
 - A full Next.js production build and live Supabase write/delete test were not run in this environment.
+
+
+## Persistent image file uploads (latest update)
+- The uploader now accepts a local JPG, PNG, or WEBP file in addition to an external image URL.
+- Local files are compressed in the browser and sent to `/api/media/upload`.
+- The API stores each file as a `media-assets` PortalRecord in the same shared database and returns a stable `/api/media/<asset-id>` URL.
+- Gallery metadata points to that internal URL. Deleting the gallery record removes its associated media asset.
+- External links are still supported for legacy compatibility, but an external host can expire or remove them. Re-upload existing images as files to create a permanent database copy.
+- The new file-upload path requires the full Next.js app and authenticated API routes; opening `portal.html` from a local `file:///` path cannot access the database.

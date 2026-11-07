@@ -168,13 +168,14 @@ async function upsertPortalRecord(kind: string, payload: PortalPayload) {
       create: { id: payload.id, kind, payload },
       update: { payload }
     });
-  }, { isolationLevel: "Serializable" });
+  }, { isolationLevel: "Serializable", maxWait: 10_000, timeout: 30_000 });
 
   try {
     return await save();
   } catch (error) {
-    if ((error as { code?: string })?.code !== "P2034") throw error;
-    return save();
+    const code = (error as { code?: string })?.code;
+    if (code !== "P2034" && code !== "P2028") throw error;
+    return save(); // fresh transaction after serialization conflict/expired session
   }
 }
 
@@ -302,11 +303,12 @@ export async function DELETE(req: NextRequest) {
         update: { payload: { recordKind: kind, recordId: id, deletedAt: new Date().toISOString() } }
       });
       return removed.count;
-    }, { isolationLevel: "Serializable" });
+    }, { isolationLevel: "Serializable", maxWait: 10_000, timeout: 30_000 });
     let deletedRecords: number;
     try { deletedRecords = await deleteRecord(); }
     catch (error) {
-      if ((error as { code?: string })?.code !== "P2034") throw error;
+      const code = (error as { code?: string })?.code;
+      if (code !== "P2034" && code !== "P2028") throw error;
       deletedRecords = await deleteRecord();
     }
     return out({ ok: true, deletedRecords, permanentlyDeleted: true });

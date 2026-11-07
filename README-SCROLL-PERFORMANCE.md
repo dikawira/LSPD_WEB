@@ -11,3 +11,9 @@
 
 ## Notes
 These changes target the main paint/decode costs identified in the current portal source. Actual frame rate still depends on browser, GPU, device load and network; no software change can guarantee literally zero stutter on every device.
+
+
+## Department Guide modal refinement
+- The detail modal uses a fixed-body scroll lock and restores the user's original page scroll position on close.
+- The modal's internal content is the only scrollable area, with overscroll containment for touch, wheel, and trackpad behavior.
+- Heavy backdrop blur is disabled on the detail modal; layout/paint containment is applied to reduce scroll repaint work.
