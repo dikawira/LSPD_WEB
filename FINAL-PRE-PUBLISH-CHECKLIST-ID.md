@@ -4,8 +4,8 @@
 - Menyatukan API kompatibilitas `/api/records` ke tabel `PortalRecord`, sehingga halaman modul lama dan portal utama membaca/menulis satu database bersama.
 - Menambahkan impor satu kali dari tabel Prisma legacy `Announcement`, `Attendance`, `FleetVehicle`, dan `Weapon` ke `PortalRecord`; ID yang sudah ada di `PortalRecord` dipertahankan sebagai data kanonis.
 - Memperbaiki hidrasi Announcement untuk akun viewer: jika migrasi data lokal ditolak karena role manager-only, viewer tetap memuat salinan server bersama.
-- Membuka akses baca pengumuman untuk seluruh user yang sudah login; create/update/delete tetap role High Command `1559517530312278036`.
-- Mendaftarkan koleksi `videos` pada API database, menambahkan validasi URL/kategori/durasi, dan membatasi publikasi/penghapusan ke role manager `1559517530312278036`.
+- Membuka akses baca pengumuman untuk seluruh user yang sudah login; create/update/delete tetap role High Command `1570150311090454599`.
+- Mendaftarkan koleksi `videos` pada API database, menambahkan validasi URL/kategori/durasi, dan membatasi publikasi/penghapusan ke role manager `1570150311090454599`.
 - Menambahkan polling pada halaman modul dan Media Center agar perubahan user lain terlihat tanpa harus selalu reload.
 - Mengalihkan halaman Analytics dan Chain of Command versi route lama ke koleksi `PortalRecord` yang sama, dengan polling ketika halaman aktif.
 - Ringkasan profil pada route modul kini mengambil data roster bersama terlebih dahulu; tabel `User` hanya menjadi fallback profil/login.
@@ -50,6 +50,6 @@ npm run start
 
 Setelah aplikasi hidup dan login Discord berhasil, buka `http://localhost:3000/api/health` (atau domain production + `/api/health`). Hasil yang diharapkan adalah `ok: true`, `database: "connected"`, `portalRecordsTable: "available"`, `legacyPrismaImport: "complete"`, dan hitungan `recordsByKind`. Jika 503, jangan publish sebelum memeriksa `DATABASE_URL`, `DIRECT_URL`, dan migration log.
 
-Tes dengan dua akun yang sudah diizinkan masuk portal: buat satu data uji pada Officer/Fleet/Weapon/Announcement/Photo sesuai role, kemudian pastikan akun kedua melihat perubahan setelah refresh atau interval sinkronisasi. Verifikasi juga bahwa role viewer `1559517381422874705` hanya dapat melihat galeri, sedangkan role manager `1559517530312278036` dapat upload/delete foto/video dan mengelola announcement.
+Tes dengan dua akun yang sudah diizinkan masuk portal: buat satu data uji pada Officer/Fleet/Weapon/Announcement/Photo sesuai role, kemudian pastikan akun kedua melihat perubahan setelah refresh atau interval sinkronisasi. Verifikasi juga bahwa role viewer `1570153422701727856` hanya dapat melihat galeri, sedangkan role manager `1570150311090454599` dapat upload/delete foto/video dan mengelola announcement.
 
 Tidak ada sistem web yang dapat dijamin bebas dari semua bug hanya dari pemeriksaan sumber. Nyatakan siap publish setelah build produksi dan tes dua akun pada database Supabase yang benar-benar dipakai Vercel berhasil.

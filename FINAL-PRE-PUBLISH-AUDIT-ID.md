@@ -42,9 +42,9 @@ Semua akun yang lolos Discord login dan menggunakan deployment/database yang sam
 ## Role dan akses saat ini
 
 - Portal login dikendalikan oleh `DISCORD_ALLOWED_ROLE_IDS` dan fail-closed ketika allow-list kosong atau user tidak memiliki role yang diizinkan.
-- Photo Viewer: role `1559517381422874705` dapat melihat Photo Gallery.
-- Photo Manager: role `1559517530312278036` dapat melihat, upload, hide, dan delete foto; role yang sama dapat mengelola Announcement dan video.
-- Announcement dapat dibaca oleh semua user portal yang sudah login; create/update/delete hanya untuk role `1559517530312278036`.
+- Photo Viewer: role `1570153422701727856` dapat melihat Photo Gallery.
+- Photo Manager: role `1570150311090454599` dapat melihat, upload, hide, dan delete foto; role yang sama dapat mengelola Announcement dan video.
+- Announcement dapat dibaca oleh semua user portal yang sudah login; create/update/delete hanya untuk role `1570150311090454599`.
 - **Penting:** CRUD Officer roster, Attendance, Fleet, dan Weapon saat ini tersedia untuk semua user yang berhasil login ke portal. Jika operasi tersebut harus dibatasi khusus High Command/command staff, tentukan ID role pengelola lalu tambahkan gate server-side pada API sebelum production. Jangan hanya menyembunyikan tombol di browser.
 - Role disimpan pada sesi OAuth. Setelah role Discord berubah, user harus logout lalu login kembali agar sesi mendapatkan role terbaru.
 
@@ -84,7 +84,7 @@ Semua akun yang lolos Discord login dan menggunakan deployment/database yang sam
    `build` juga menjalankan `prisma migrate deploy`; command manual di atas membantu memisahkan error migration dari error build.
 5. Login dengan dua akun Discord yang memang diizinkan. Pada akun A buat satu record uji di Officer/Fleet/Weapon dan satu data sesuai izin; pastikan akun B melihat data yang sama setelah refresh atau paling lama interval sinkronisasi.
 6. Verifikasi `/api/health` saat sudah login: hasil yang diharapkan `ok: true`, `database: "connected"`, `portalRecordsTable: "available"`, `legacyPrismaImport: "complete"`, serta `recordsByKind`.
-7. Uji role: akun Viewer `1559517381422874705` dapat membuka All Photos/Categories/Albums tetapi tidak dapat Upload/Delete; akun Manager `1559517530312278036` dapat mengelola foto dan Announcement. Uji juga Announcement popup pada akun viewer.
+7. Uji role: akun Viewer `1570153422701727856` dapat membuka All Photos/Categories/Albums tetapi tidak dapat Upload/Delete; akun Manager `1570150311090454599` dapat mengelola foto dan Announcement. Uji juga Announcement popup pada akun viewer.
 8. Periksa data hasil impor legacy dan jumlah personel/armada/senjata sebelum menghapus atau mematikan deployment lama. Backup Supabase sebelum migration/deploy.
 
 **Rekomendasi publish:** lakukan deploy staging/preview terlebih dahulu. Publikasikan ke domain utama hanya setelah `bun run build`, `/api/health`, OAuth Discord, tes role, dan tes sinkronisasi dua akun semuanya berhasil.

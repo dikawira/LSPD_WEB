@@ -10,9 +10,9 @@ This is the migration foundation for the existing static LSPD portal. It establi
 
 ## Discord access policy
 
-- Guild ID: `1559511669892186113`
-- Login role: `1559517381422874705`
-- Announcements role: `1559517530312278036`
+- Guild ID: `1570135769312403638`
+- Login role: `1570153422701727856`
+- Announcements role: `1570150311090454599`
 
 A user must have the login role to enter the portal. The Announcements permission is an additional permission: the user must also have the Announcements role. All checks are server-side and fail closed.
 
@@ -79,7 +79,7 @@ The reference HTML portal keeps its original localStorage interface, but its off
 ### Authentication
 - `/login` is the only place with the Discord login button.
 - `DISCORD_ALLOWED_ROLE_IDS` controls who may enter the portal.
-- Announcement management is restricted to the exact role ID `1559517530312278036` in `src/lib/auth.ts`.
+- Announcement management is restricted to the exact role ID `1570150311090454599` in `src/lib/auth.ts`.
 - Configure the Discord OAuth redirect URI as `https://YOUR_DOMAIN/api/auth/discord/callback` in the Discord Developer Portal.
 
 
@@ -92,7 +92,7 @@ The reference portal now hydrates these shared collections from PostgreSQL befor
 - Fleet (`LSPD_FLEET_DATA_V1`)
 - Weapons (`LSPD_WEAPON_DATA_V1`)
 
-Writes from the original forms are sent to `/api/portal-data`; records are stored in the `PortalRecord` table and become visible to other authenticated users. The portal refreshes these collections every 20 seconds. Announcement reads are available to every authenticated portal user; create/update/delete require the exact Discord High Command role `1559517530312278036`. Photo reads require the gallery viewer or manager role; photo/video upload and delete require manager role `1559517530312278036`. Other core portal collections require an authenticated portal session.
+Writes from the original forms are sent to `/api/portal-data`; records are stored in the `PortalRecord` table and become visible to other authenticated users. The portal refreshes these collections every 20 seconds. Announcement reads are available to every authenticated portal user; create/update/delete require the exact Discord High Command role `1570150311090454599`. Photo reads require the gallery viewer or manager role; photo/video upload and delete require manager role `1570150311090454599`. Other core portal collections require an authenticated portal session.
 
 ### Apply the database migration
 Run:
@@ -115,7 +115,7 @@ The `DIRECT_URL` must point to a Supabase connection usable for migrations; `DAT
 
 ## High Command Announcements access gate
 
-The **Pengumuman** navigation item remains visible to all logged-in personnel. Clicking it opens an access-denied popup unless the authenticated Discord guild member has the exact role ID `1559517530312278036`.
+The **Pengumuman** navigation item remains visible to all logged-in personnel. Clicking it opens an access-denied popup unless the authenticated Discord guild member has the exact role ID `1570150311090454599`.
 
 The same role check is enforced server-side on announcement create/update/delete APIs, not just in the browser. Announcement read access is available to every authenticated portal user. The write check uses Discord role IDs captured during OAuth guild-member verification, so users without the role cannot bypass it by calling the API directly.
 
@@ -139,9 +139,9 @@ Local-only records from a browser are merged into the central store at sign-in/i
 
 ### Roles
 - Portal login is fail-closed and controlled by `DISCORD_ALLOWED_ROLE_IDS`.
-- Photo viewing is granted to role `1559517381422874705` and the upload manager role.
-- Photo/video upload and deletion are granted to role `1559517530312278036`.
-- Announcement create/edit/delete is granted to role `1559517530312278036`; authenticated users may read announcements and the notification popup.
+- Photo viewing is granted to role `1570153422701727856` and the upload manager role.
+- Photo/video upload and deletion are granted to role `1570150311090454599`.
+- Announcement create/edit/delete is granted to role `1570150311090454599`; authenticated users may read announcements and the notification popup.
 - Officer roster, attendance, Fleet, and Weapon API operations are available to authenticated portal users. Add additional server-side role gates before production if these operational edits should be limited to a narrower command role.
 
 The photo and announcement role IDs are enforced in server routes in `src/lib/auth.ts` and `src/app/api/portal-data/route.ts`; hiding a button in the browser is not the only security check.

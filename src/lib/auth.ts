@@ -2,9 +2,9 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 const COOKIE = "lspd_session";
-export const ANNOUNCEMENT_ACCESS_ROLE_ID = "1559517530312278036";
-export const PHOTO_VIEW_ROLE_ID = "1559517381422874705";
-export const PHOTO_UPLOAD_ROLE_ID = "1559517530312278036";
+export const ANNOUNCEMENT_ACCESS_ROLE_ID = "1570150311090454599";
+export const PHOTO_VIEW_ROLE_ID = "1570153422701727856";
+export const PHOTO_UPLOAD_ROLE_ID = "1570150311090454599";
 
 /** Browsing is allowed to the gallery viewer role and to photo managers. */
 export function canViewPhotos(session: Pick<Session, "roles"> | null | undefined): boolean {

@@ -69,17 +69,17 @@ Menu **All Photos**, **Photo Categories**, dan **Albums** sekarang membuka halam
 
 
 ## Photo Gallery: role Viewer dan Upload dipisah
-- **Viewer role:** `1559517381422874705` — dapat membuka **All Photos**, **Photo Categories**, dan **Albums**. Menu **Upload Photo** tidak ditampilkan.
-- **Upload/manager role:** `1559517530312278036` — dapat membuka halaman Photo Gallery dan menu **Upload Photo**, termasuk menyimpan, menyembunyikan, dan menghapus foto.
+- **Viewer role:** `1570153422701727856` — dapat membuka **All Photos**, **Photo Categories**, dan **Albums**. Menu **Upload Photo** tidak ditampilkan.
+- **Upload/manager role:** `1570150311090454599` — dapat membuka halaman Photo Gallery dan menu **Upload Photo**, termasuk menyimpan, menyembunyikan, dan menghapus foto.
 - Pemegang role Upload juga dapat melihat galeri. Role Viewer saja tidak dapat mengunggah atau menghapus.
 - API GET `photos` dan `photo-hidden` memeriksa viewer role atau upload role; API POST/DELETE tetap memeriksa upload role saja.
 - Pada `.env` lokal dan Vercel, `DISCORD_ALLOWED_ROLE_IDS` harus memuat kedua role, dipisahkan koma:
-  `1559517381422874705,1559517530312278036`
+  `1570153422701727856,1570150311090454599`
 - Perbarui Environment Variables Vercel untuk Production/Preview yang dipakai, lalu redeploy. File `.env` tidak disertakan di ZIP.
 
 
 ## Notification bell — latest announcements
-Klik ikon lonceng di navigation bar untuk membuka popup **Latest Announcements**. Popup mengambil enam pengumuman terbaru dari endpoint `GET /api/portal-data?kind=announcements`, menampilkan kategori, prioritas, judul, isi, penulis, dan waktu terbit. Pembacaan announcement tersedia untuk semua pengguna LSPD yang sudah login; endpoint POST/DELETE tetap dibatasi ke role High Command `1559517530312278036`.
+Klik ikon lonceng di navigation bar untuk membuka popup **Latest Announcements**. Popup mengambil enam pengumuman terbaru dari endpoint `GET /api/portal-data?kind=announcements`, menampilkan kategori, prioritas, judul, isi, penulis, dan waktu terbit. Pembacaan announcement tersedia untuk semua pengguna LSPD yang sudah login; endpoint POST/DELETE tetap dibatasi ke role High Command `1570150311090454599`.
 
 
 ## Fleet & Weapon data di Officer Profile
