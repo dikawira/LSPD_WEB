@@ -154,3 +154,12 @@ The photo and announcement role IDs are enforced in server routes in `src/lib/au
 5. Keep `.env` private and never upload it into the project ZIP or Git repository.
 
 A source-level audit cannot verify live Supabase credentials, live Discord role membership, or Vercel production settings. Those require the post-deployment checks above.
+
+
+## OAuth callback URL correction (13 Nov 2026)
+
+Use exactly this production callback URL in both Vercel `DISCORD_REDIRECT_URI` and Discord Developer Portal → OAuth2 → Redirects:
+
+`https://lspd-web-topaz.vercel.app/api/auth/discord/callback`
+
+Do not include a double slash before `api`. The Discord config now normalizes repeated leading slashes in the callback path before both authorization and token exchange. Redeploy after updating the Vercel environment variable.

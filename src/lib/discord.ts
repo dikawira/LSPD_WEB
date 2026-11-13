@@ -5,7 +5,12 @@ export function discordConfig() {
   if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI || !DISCORD_GUILD_ID) {
     throw new Error("Konfigurasi Discord OAuth belum lengkap");
   }
-  return { clientId: DISCORD_CLIENT_ID, clientSecret: DISCORD_CLIENT_SECRET, redirectUri: DISCORD_REDIRECT_URI, guildId: DISCORD_GUILD_ID };
+  // Normalize malformed callback paths such as https://domain//api/... to a single slash.
+  // The normalized value is used for both OAuth authorization and token exchange.
+  const redirect = new URL(DISCORD_REDIRECT_URI);
+  redirect.pathname = "/" + redirect.pathname.replace(/^\/+/, "");
+  const redirectUri = redirect.toString();
+  return { clientId: DISCORD_CLIENT_ID, clientSecret: DISCORD_CLIENT_SECRET, redirectUri, guildId: DISCORD_GUILD_ID };
 }
 
 export async function exchangeCode(code: string) {
